@@ -852,103 +852,111 @@ const parseChangeSummary = (action: string, details: Record<string, unknown> | n
  
        {/* Detail Log Dialog - With proper field changes table */}
        <Dialog open={!!detailLogId} onOpenChange={() => setDetailLogId(null)}>
-        <DialogContent className="max-w-lg">
-           <DialogHeader>
-             <DialogTitle className="text-sm">History Details</DialogTitle>
-           </DialogHeader>
-           {selectedLog && (() => {
-             const details = selectedLog.details as Record<string, any> | null;
-             const isManualEntry = details?.manual_entry === true;
-             const changes = parseFieldChanges(selectedLog.details);
-             const updaterName = selectedLog.user_id ? (displayNames[selectedLog.user_id] || 'Unknown') : '-';
-             
-             return (
-               <div className="space-y-4 text-sm">
-                 <div className="grid grid-cols-2 gap-3">
-                   <div>
-                     <span className="text-muted-foreground text-xs">Action / Type</span>
-                     <div className="flex items-center gap-1.5 mt-0.5">
-                       <span className={cn('w-2 h-2 rounded-full inline-block', getTypeDotColor(selectedLog.action))} />
-                       <p className="capitalize font-medium">{selectedLog.action.toLowerCase()}</p>
-                     </div>
-                   </div>
-                   <div>
-                     <span className="text-muted-foreground text-xs">Updated By</span>
-                     <p className="font-medium">{updaterName}</p>
-                   </div>
-                   <div className="col-span-2">
-                     <span className="text-muted-foreground text-xs">Time</span>
-                     <p>{format(new Date(selectedLog.created_at), 'PPpp')}</p>
-                   </div>
-                 </div>
-                 
-                 {/* Manual entry details (Note, Call, Meeting, Email) */}
-                 {isManualEntry && details?.message && (
-                   <div>
-                     <span className="text-muted-foreground text-xs block mb-1">Message</span>
-                     <p className="text-sm bg-muted/30 rounded-md p-2 whitespace-pre-wrap">{String(details.message)}</p>
-                   </div>
-                 )}
+        <DialogContent className="max-w-lg max-h-[85vh] overflow-hidden flex flex-col">
+            <DialogHeader>
+              <DialogTitle className="text-sm">History Details</DialogTitle>
+            </DialogHeader>
+            {selectedLog && (() => {
+              const details = selectedLog.details as Record<string, any> | null;
+              const isManualEntry = details?.manual_entry === true;
+              const changes = parseFieldChanges(selectedLog.details);
+              const updaterName = selectedLog.user_id ? (displayNames[selectedLog.user_id] || 'Unknown') : '-';
+              
+              return (
+                <ScrollArea className="flex-1 max-h-[calc(85vh-80px)]">
+                <div className="space-y-4 text-sm pr-2">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <span className="text-muted-foreground text-xs">Action / Type</span>
+                      <div className="flex items-center gap-1.5 mt-0.5">
+                        <span className={cn('w-2 h-2 rounded-full inline-block', getTypeDotColor(selectedLog.action))} />
+                        <p className="capitalize font-medium">{selectedLog.action.toLowerCase()}</p>
+                      </div>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground text-xs">Updated By</span>
+                      <p className="font-medium">{updaterName}</p>
+                    </div>
+                    <div className="col-span-2">
+                      <span className="text-muted-foreground text-xs">Time</span>
+                      <p>{format(new Date(selectedLog.created_at), 'PPpp')}</p>
+                    </div>
+                  </div>
+                  
+                  {/* Manual entry details (Note, Call, Meeting, Email) */}
+                  {isManualEntry && details?.message && (
+                    <div>
+                      <span className="text-muted-foreground text-xs block mb-1">Message</span>
+                      <p className="text-sm bg-muted/30 rounded-md p-2 whitespace-pre-wrap break-words">{String(details.message)}</p>
+                    </div>
+                  )}
 
-                 {/* Action item status change details */}
-                 {details?.action_item_title && (
-                   <div>
-                     <span className="text-muted-foreground text-xs block mb-1">Action Item</span>
-                     <p className="text-sm font-medium">{String(details.action_item_title)}</p>
-                   </div>
-                 )}
-                 
-                 {/* Field changes table */}
-                 {changes.length > 0 && (
-                   <div>
-                     <span className="text-muted-foreground text-xs block mb-2">Field Changes</span>
-                     <div className="border rounded-lg overflow-hidden">
-                       <Table>
-                         <TableHeader>
-                           <TableRow className="bg-muted/50">
-                             <TableHead className="h-8 px-3 text-xs font-medium">Field</TableHead>
-                             <TableHead className="h-8 px-3 text-xs font-medium">Old Value</TableHead>
-                             <TableHead className="h-8 px-3 text-xs font-medium w-6"></TableHead>
-                             <TableHead className="h-8 px-3 text-xs font-medium">New Value</TableHead>
-                           </TableRow>
-                         </TableHeader>
-                         <TableBody>
-                           {changes.map((change, idx) => (
-                             <TableRow key={idx}>
-                               <TableCell className="py-2 px-3 text-xs font-medium capitalize">
-                                 {change.field}
-                               </TableCell>
-                               <TableCell className="py-2 px-3 text-xs text-muted-foreground whitespace-normal break-words">
-                                 {change.oldValue}
-                               </TableCell>
-                               <TableCell className="py-2 px-3">
-                                 <ArrowRight className="h-3 w-3 text-muted-foreground" />
-                               </TableCell>
-                               <TableCell className="py-2 px-3 text-xs font-medium whitespace-normal break-words">
-                                 {change.newValue}
-                               </TableCell>
-                             </TableRow>
-                           ))}
-                         </TableBody>
-                       </Table>
-                     </div>
-                   </div>
-                 )}
+                  {/* Action item status change details */}
+                  {details?.action_item_title && (
+                    <div>
+                      <span className="text-muted-foreground text-xs block mb-1">Action Item</span>
+                      <p className="text-sm font-medium">{String(details.action_item_title)}</p>
+                    </div>
+                  )}
+                  
+                  {/* Field changes table */}
+                  {changes.length > 0 && (
+                    <div>
+                      <span className="text-muted-foreground text-xs block mb-2">Field Changes</span>
+                      <div className="border rounded-lg overflow-hidden">
+                        <Table className="table-fixed w-full">
+                          <TableHeader>
+                            <TableRow className="bg-muted/50">
+                              <TableHead className="h-8 px-3 text-xs font-medium w-[25%]">Field</TableHead>
+                              <TableHead className="h-8 px-3 text-xs font-medium w-[30%]">Old Value</TableHead>
+                              <TableHead className="h-8 px-1 text-xs font-medium w-[20px]"></TableHead>
+                              <TableHead className="h-8 px-3 text-xs font-medium">New Value</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {changes.map((change, idx) => (
+                              <TableRow key={idx}>
+                                <TableCell className="py-2 px-3 text-xs font-medium capitalize break-words">
+                                  {change.field}
+                                </TableCell>
+                                <TableCell className="py-2 px-3 text-xs text-muted-foreground whitespace-normal break-all overflow-hidden">
+                                  {change.oldValue}
+                                </TableCell>
+                                <TableCell className="py-2 px-1 w-[20px]">
+                                  <ArrowRight className="h-3 w-3 text-muted-foreground flex-shrink-0" />
+                                </TableCell>
+                                <TableCell className="py-2 px-3 text-xs font-medium whitespace-normal break-all overflow-hidden">
+                                  {change.newValue}
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </div>
+                    </div>
+                  )}
 
-                 {/* Show raw details for entries with no changes and no message */}
-                 {changes.length === 0 && !isManualEntry && selectedLog.action === 'create' && (
-                   <p className="text-muted-foreground text-xs italic">Deal was created</p>
-                 )}
-                 {changes.length === 0 && !isManualEntry && selectedLog.action !== 'create' && details && !details.action_item_title && (
-                   <div>
-                     <span className="text-muted-foreground text-xs block mb-1">Details</span>
-                     <pre className="text-xs bg-muted/30 rounded-md p-2 whitespace-pre-wrap overflow-auto max-h-40">{JSON.stringify(details, null, 2)}</pre>
-                   </div>
-                 )}
-               </div>
-             );
-           })()}
-         </DialogContent>
+                  {/* Show raw details for create entries */}
+                  {changes.length === 0 && !isManualEntry && selectedLog.action === 'create' && details && (
+                    <div>
+                      <span className="text-muted-foreground text-xs block mb-1">Record Data</span>
+                      <pre className="text-xs bg-muted/30 rounded-md p-2 whitespace-pre-wrap break-all overflow-auto max-h-48">{JSON.stringify(details, null, 2)}</pre>
+                    </div>
+                  )}
+                  {changes.length === 0 && !isManualEntry && selectedLog.action === 'create' && !details && (
+                    <p className="text-muted-foreground text-xs italic">Deal was created</p>
+                  )}
+                  {changes.length === 0 && !isManualEntry && selectedLog.action !== 'create' && details && !details.action_item_title && (
+                    <div>
+                      <span className="text-muted-foreground text-xs block mb-1">Details</span>
+                      <pre className="text-xs bg-muted/30 rounded-md p-2 whitespace-pre-wrap break-all overflow-auto max-h-48">{JSON.stringify(details, null, 2)}</pre>
+                    </div>
+                  )}
+                </div>
+                </ScrollArea>
+              );
+            })()}
+          </DialogContent>
        </Dialog>
        
        {/* Add Log Dialog */}
