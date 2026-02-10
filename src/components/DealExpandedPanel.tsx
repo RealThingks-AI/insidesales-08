@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react";
 import { X, Plus, Clock, History, ListTodo, ChevronDown, ChevronRight, Eye, Pencil, ArrowRight, RefreshCw, Check, ArrowUpDown, ArrowUp, ArrowDown, MessageSquarePlus, Phone, Mail, Calendar, FileText, User, MoreHorizontal, Trash2, CheckCircle, Handshake } from "lucide-react";
-import { Checkbox } from "@/components/ui/checkbox";
+// Checkbox import removed - using serial numbers instead
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import { useAllUsers } from "@/hooks/useUserDisplayNames";
@@ -146,7 +146,7 @@ const parseChangeSummary = (action: string, details: Record<string, unknown> | n
    const [historyOpen, setHistoryOpen] = useState(true);
    const [actionsOpen, setActionsOpen] = useState(true);
     const [detailLogId, setDetailLogId] = useState<string | null>(null);
-    const [actionItemSortField, setActionItemSortField] = useState<string>('due_date');
+    const [actionItemSortField, setActionItemSortField] = useState<string>('status');
     const [actionItemSortDirection, setActionItemSortDirection] = useState<'asc' | 'desc'>('asc');
     const queryClient = useQueryClient();
     
@@ -157,13 +157,13 @@ const parseChangeSummary = (action: string, details: Record<string, unknown> | n
     const [isSavingLog, setIsSavingLog] = useState(false);
 
     // Action items inline editing state
-    const [selectedActionIds, setSelectedActionIds] = useState<string[]>([]);
+    // selectedActionIds removed - using serial numbers instead
     const [editingDateId, setEditingDateId] = useState<string | null>(null);
 
     // History section state
     const [historyTypeFilter, setHistoryTypeFilter] = useState<string>('All');
     const [historySortField, setHistorySortField] = useState<string>('created_at');
-    const [historySortDirection, setHistorySortDirection] = useState<'desc' | 'asc'>('desc');
+    const [historySortDirection, setHistorySortDirection] = useState<'desc' | 'asc'>('asc');
 
     const { users, getUserDisplayName } = useAllUsers();
 
@@ -396,10 +396,32 @@ const parseChangeSummary = (action: string, details: Record<string, unknown> | n
       queryClient.invalidateQueries({ queryKey: ['deal-action-items-unified', deal.id] });
     };
 
-    const handleStatusChange = async (id: string, status: string) => {
-      await supabase.from('action_items').update({ status, updated_at: new Date().toISOString() }).eq('id', id);
-      invalidateActionItems();
-    };
+     const handleStatusChange = async (id: string, status: string) => {
+       const item = actionItems.find(i => i.id === id);
+       const oldStatus = item?.status || 'Unknown';
+       await supabase.from('action_items').update({ status, updated_at: new Date().toISOString() }).eq('id', id);
+       
+       // Log status change in history
+       try {
+         await supabase.from('security_audit_log').insert({
+           action: 'update',
+           resource_type: 'deals',
+           resource_id: deal.id,
+           user_id: user?.id,
+           details: {
+             message: `Action item status changed: ${oldStatus} → ${status}`,
+             field_changes: { status: { old: oldStatus, new: status } },
+             action_item_id: id,
+             action_item_title: item?.title
+           }
+         });
+       } catch (e) {
+         console.error('Failed to log status change:', e);
+       }
+       
+       invalidateActionItems();
+       queryClient.invalidateQueries({ queryKey: ['deal-audit-logs', deal.id] });
+     };
 
     const handlePriorityChange = async (id: string, priority: string) => {
       await supabase.from('action_items').update({ priority, updated_at: new Date().toISOString() }).eq('id', id);
@@ -426,20 +448,7 @@ const parseChangeSummary = (action: string, details: Record<string, unknown> | n
       setEditingDateId(null);
     };
 
-    const toggleAllActions = () => {
-      if (selectedActionIds.length === sortedActionItems.length) {
-        setSelectedActionIds([]);
-      } else {
-        setSelectedActionIds(sortedActionItems.map(i => i.id));
-      }
-    };
-
-    const toggleActionItem = (id: string) => {
-      setSelectedActionIds(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]);
-    };
-
-    const allActionsSelected = sortedActionItems.length > 0 && selectedActionIds.length === sortedActionItems.length;
-    const someActionsSelected = selectedActionIds.length > 0 && selectedActionIds.length < sortedActionItems.length;
+     // Checkbox selection logic removed - using serial numbers
 
     const statusDotColor: Record<string, string> = {
       'Open': 'bg-blue-500',
@@ -542,67 +551,74 @@ const parseChangeSummary = (action: string, details: Record<string, unknown> | n
                          <span className="text-xs">{historyTypeFilter !== 'All' ? 'No matching logs' : 'No history yet'}</span>
                        </div>
                      ) : (
-                       <Table>
-                         <TableHeader>
-                           <TableRow className="text-[11px] bg-muted/50">
-                             <TableHead className="h-7 px-2 text-[11px] font-bold">
-                               <button className="flex items-center gap-1" onClick={() => handleHistorySort('changes')}>
-                                 Changes {getHistorySortIcon('changes')}
-                               </button>
-                             </TableHead>
-                             <TableHead className="h-7 px-2 text-[11px] font-bold w-24">
-                               <button className="flex items-center gap-1" onClick={() => handleHistorySort('user_id')}>
-                                 By {getHistorySortIcon('user_id')}
-                               </button>
-                             </TableHead>
-                             <TableHead className="h-7 px-2 text-[11px] font-bold w-16">
-                               <button className="flex items-center gap-1" onClick={() => handleHistorySort('action')}>
-                                 Type {getHistorySortIcon('action')}
-                               </button>
-                             </TableHead>
-                             <TableHead className="h-7 px-2 text-[11px] font-bold w-24">
-                               <button className="flex items-center gap-1" onClick={() => handleHistorySort('created_at')}>
-                                 Time {getHistorySortIcon('created_at')}
-                               </button>
-                             </TableHead>
-                             <TableHead className="h-7 px-1 w-8"></TableHead>
+                        <Table>
+                          <TableHeader className="sticky top-0 z-10 bg-card">
+                            <TableRow className="text-[11px] bg-muted/50">
+                              <TableHead className="h-7 px-1 text-[11px] font-bold w-8 text-center">#</TableHead>
+                              <TableHead className="h-7 px-2 text-[11px] font-bold">
+                                <button className="flex items-center gap-1" onClick={() => handleHistorySort('changes')}>
+                                  Changes {getHistorySortIcon('changes')}
+                                </button>
+                              </TableHead>
+                              <TableHead className="h-7 px-2 text-[11px] font-bold w-24">
+                                <button className="flex items-center gap-1" onClick={() => handleHistorySort('user_id')}>
+                                  By {getHistorySortIcon('user_id')}
+                                </button>
+                              </TableHead>
+                              <TableHead className="h-7 px-2 text-[11px] font-bold w-20">
+                                <button className="flex items-center gap-1" onClick={() => handleHistorySort('action')}>
+                                  Type {getHistorySortIcon('action')}
+                                </button>
+                              </TableHead>
+                              <TableHead className="h-7 px-2 text-[11px] font-bold w-24">
+                                <button className="flex items-center gap-1" onClick={() => handleHistorySort('created_at')}>
+                                  Time {getHistorySortIcon('created_at')}
+                                </button>
+                              </TableHead>
+                              <TableHead className="h-7 px-1 w-8"></TableHead>
                            </TableRow>
                          </TableHeader>
                          <TableBody>
-                           {filteredSortedLogs.map((log) => (
-                             <TableRow key={log.id} className="text-xs group cursor-pointer hover:bg-muted/30">
-                               {/* Changes - clickable blue text */}
-                               <TableCell className="py-1.5 px-2">
-                                 <button 
-                                   onClick={() => setDetailLogId(log.id)}
-                                   className="hover:underline text-left whitespace-normal break-words text-[#2e538e] font-normal text-xs max-w-[200px] truncate block"
-                                 >
-                                   {(log.details as any)?.message || parseChangeSummary(log.action, log.details)}
-                                 </button>
-                               </TableCell>
+                            {filteredSortedLogs.map((log, index) => (
+                              <TableRow key={log.id} className="text-xs group cursor-pointer hover:bg-muted/30">
+                                {/* Serial # */}
+                                <TableCell className="py-1.5 px-1 text-[10px] text-muted-foreground text-center w-8">{index + 1}</TableCell>
 
-                               {/* By - fully visible */}
-                               <TableCell className="py-1.5 px-2 text-muted-foreground whitespace-nowrap text-[10px]">
-                                 {log.user_id ? (displayNames[log.user_id] || '...') : '-'}
-                               </TableCell>
+                                {/* Changes - full width */}
+                                <TableCell className="py-1.5 px-2">
+                                  <button 
+                                    onClick={() => setDetailLogId(log.id)}
+                                    className="hover:underline text-left whitespace-normal break-words text-[#2e538e] font-normal text-xs"
+                                  >
+                                    {(log.details as any)?.message || parseChangeSummary(log.action, log.details)}
+                                  </button>
+                                </TableCell>
 
-                               {/* Type - text label */}
-                               <TableCell className="py-1.5 px-2">
-                                 <span className="capitalize text-[10px] text-muted-foreground">{log.action.toLowerCase()}</span>
-                               </TableCell>
+                                {/* By */}
+                                <TableCell className="py-1.5 px-2 text-muted-foreground whitespace-nowrap text-[10px]">
+                                  {log.user_id ? (displayNames[log.user_id] || '...') : '-'}
+                                </TableCell>
 
-                               {/* Time */}
-                               <TableCell className="py-1.5 px-2 text-[10px] text-muted-foreground whitespace-nowrap w-24">
-                                 {formatHistoryDateTime(new Date(log.created_at))}
-                               </TableCell>
+                                {/* Type - colored dot + label */}
+                                <TableCell className="py-1.5 px-2">
+                                  <div className="flex items-center gap-1.5">
+                                    <span className={cn('w-2 h-2 rounded-full inline-block flex-shrink-0', getTypeDotColor(log.action))} />
+                                    <span className="capitalize text-[10px] text-muted-foreground">{log.action.toLowerCase()}</span>
+                                  </div>
+                                </TableCell>
 
-                               {/* Eye icon only */}
-                               <TableCell onClick={e => e.stopPropagation()} className="py-1.5 px-1 w-8">
-                                 <Button variant="ghost" size="sm" className="h-5 w-5 p-0 opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => setDetailLogId(log.id)}>
-                                   <Eye className="h-3 w-3" />
-                                 </Button>
-                               </TableCell>
-                             </TableRow>
+                                {/* Time */}
+                                <TableCell className="py-1.5 px-2 text-[10px] text-muted-foreground whitespace-nowrap w-24">
+                                  {formatHistoryDateTime(new Date(log.created_at))}
+                                </TableCell>
+
+                                {/* Eye icon */}
+                                <TableCell onClick={e => e.stopPropagation()} className="py-1.5 px-1 w-8">
+                                  <Button variant="ghost" size="sm" className="h-5 w-5 p-0 opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => setDetailLogId(log.id)}>
+                                    <Eye className="h-3 w-3" />
+                                  </Button>
+                                </TableCell>
+                              </TableRow>
                            ))}
                          </TableBody>
                        </Table>
@@ -660,56 +676,48 @@ const parseChangeSummary = (action: string, details: Record<string, unknown> | n
                         </Button>
                       </div>
                     ) : (
-                      <Table>
-                        <TableHeader>
-                          <TableRow className="text-[11px] bg-muted/50">
-                            <TableHead className="h-7 px-1 w-7">
-                              <div className="flex items-center justify-center">
-                                <Checkbox checked={allActionsSelected} onCheckedChange={toggleAllActions} className={someActionsSelected ? 'data-[state=checked]:bg-primary' : ''} />
-                              </div>
-                            </TableHead>
-                            <TableHead className="h-7 px-2 text-[11px] font-bold">
-                               <button className="flex items-center gap-1" onClick={() => handleActionItemSort('title')}>
-                                 Task {getActionItemSortIcon('title')}
-                               </button>
-                             </TableHead>
-                             <TableHead className="h-7 px-2 text-[11px] font-bold w-20">
-                               <button className="flex items-center gap-1" onClick={() => handleActionItemSort('assigned_to')}>
-                                 Assigned To {getActionItemSortIcon('assigned_to')}
-                               </button>
-                             </TableHead>
-                             <TableHead className="h-7 px-2 text-[11px] font-bold w-16">
-                               <button className="flex items-center gap-1" onClick={() => handleActionItemSort('due_date')}>
-                                 Due Date {getActionItemSortIcon('due_date')}
-                               </button>
-                             </TableHead>
-                             <TableHead className="h-7 px-1 text-[11px] font-bold text-center" style={{ width: '6.67%', maxWidth: '6.67%' }}>
-                               <button className="flex items-center gap-1 mx-auto" onClick={() => handleActionItemSort('status')}>
-                                 Status {getActionItemSortIcon('status')}
-                               </button>
-                             </TableHead>
-                             <TableHead className="h-7 px-1 text-[11px] font-bold text-center" style={{ width: '6.67%', maxWidth: '6.67%' }}>
-                               <button className="flex items-center gap-1 mx-auto" onClick={() => handleActionItemSort('priority')}>
-                                 Priority {getActionItemSortIcon('priority')}
-                               </button>
-                             </TableHead>
-                             <TableHead className="h-7 px-1 text-[11px] font-bold text-center" style={{ width: '6.67%', maxWidth: '6.67%' }}>Module</TableHead>
-                             <TableHead className="h-7 px-1 w-8"></TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {sortedActionItems.map((item) => (
-                            <TableRow 
-                              key={item.id} 
-                              className={cn("text-xs group cursor-pointer hover:bg-muted/30", selectedActionIds.includes(item.id) && 'bg-primary/5')}
-                              onClick={() => handleActionItemClick(item)}
-                            >
-                              {/* Checkbox */}
-                              <TableCell onClick={e => e.stopPropagation()} className="py-1.5 px-1 w-7">
-                                <div className="flex items-center justify-center">
-                                  <Checkbox checked={selectedActionIds.includes(item.id)} onCheckedChange={() => toggleActionItem(item.id)} />
-                                </div>
-                              </TableCell>
+                       <Table>
+                         <TableHeader className="sticky top-0 z-10 bg-card">
+                           <TableRow className="text-[11px] bg-muted/50">
+                             <TableHead className="h-7 px-1 text-[11px] font-bold w-8 text-center">#</TableHead>
+                             <TableHead className="h-7 px-2 text-[11px] font-bold">
+                                <button className="flex items-center gap-1" onClick={() => handleActionItemSort('title')}>
+                                  Task {getActionItemSortIcon('title')}
+                                </button>
+                              </TableHead>
+                              <TableHead className="h-7 px-2 text-[11px] font-bold w-20">
+                                <button className="flex items-center gap-1" onClick={() => handleActionItemSort('assigned_to')}>
+                                  Assigned To {getActionItemSortIcon('assigned_to')}
+                                </button>
+                              </TableHead>
+                              <TableHead className="h-7 px-2 text-[11px] font-bold w-16">
+                                <button className="flex items-center gap-1" onClick={() => handleActionItemSort('due_date')}>
+                                  Due {getActionItemSortIcon('due_date')}
+                                </button>
+                              </TableHead>
+                              <TableHead className="h-7 px-1 text-[11px] font-bold text-center" style={{ width: '6.67%', maxWidth: '6.67%' }}>
+                                <button className="flex items-center gap-1 mx-auto" onClick={() => handleActionItemSort('status')}>
+                                  Status {getActionItemSortIcon('status')}
+                                </button>
+                              </TableHead>
+                              <TableHead className="h-7 px-1 text-[11px] font-bold text-center" style={{ width: '6.67%', maxWidth: '6.67%' }}>
+                                <button className="flex items-center gap-1 mx-auto" onClick={() => handleActionItemSort('priority')}>
+                                  Priority {getActionItemSortIcon('priority')}
+                                </button>
+                              </TableHead>
+                              <TableHead className="h-7 px-1 text-[11px] font-bold text-center" style={{ width: '6.67%', maxWidth: '6.67%' }}>Module</TableHead>
+                              <TableHead className="h-7 px-1 w-8"></TableHead>
+                           </TableRow>
+                         </TableHeader>
+                         <TableBody>
+                           {sortedActionItems.map((item, index) => (
+                             <TableRow 
+                               key={item.id} 
+                               className="text-xs group cursor-pointer hover:bg-muted/30"
+                               onClick={() => handleActionItemClick(item)}
+                             >
+                               {/* Serial # */}
+                               <TableCell className="py-1.5 px-1 text-[10px] text-muted-foreground text-center w-8">{index + 1}</TableCell>
 
                               {/* Task */}
                               <TableCell className="py-1.5 px-2">
@@ -848,69 +856,98 @@ const parseChangeSummary = (action: string, details: Record<string, unknown> | n
            <DialogHeader>
              <DialogTitle className="text-sm">History Details</DialogTitle>
            </DialogHeader>
-          {selectedLog && (() => {
-            const changes = parseFieldChanges(selectedLog.details);
-            const updaterName = selectedLog.user_id ? (displayNames[selectedLog.user_id] || 'Unknown') : '-';
-            
-            return (
-              <div className="space-y-4 text-sm">
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <span className="text-muted-foreground text-xs">Action</span>
-                    <p className="capitalize font-medium">{selectedLog.action}</p>
-                  </div>
-                  <div>
-                    <span className="text-muted-foreground text-xs">Updated By</span>
-                    <p className="font-medium">{updaterName}</p>
-                  </div>
-                  <div className="col-span-2">
-                    <span className="text-muted-foreground text-xs">Time</span>
-                    <p>{format(new Date(selectedLog.created_at), 'PPpp')}</p>
-                  </div>
-                </div>
-                
-                {changes.length > 0 && (
-                  <div>
-                    <span className="text-muted-foreground text-xs block mb-2">Field Changes</span>
-                    <div className="border rounded-lg overflow-hidden">
-                      <Table>
-                        <TableHeader>
-                          <TableRow className="bg-muted/50">
-                            <TableHead className="h-8 px-3 text-xs font-medium">Field</TableHead>
-                            <TableHead className="h-8 px-3 text-xs font-medium">Old Value</TableHead>
-                            <TableHead className="h-8 px-3 text-xs font-medium w-6"></TableHead>
-                            <TableHead className="h-8 px-3 text-xs font-medium">New Value</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {changes.map((change, idx) => (
-                            <TableRow key={idx}>
-                              <TableCell className="py-2 px-3 text-xs font-medium capitalize">
-                                {change.field}
-                              </TableCell>
-                              <TableCell className="py-2 px-3 text-xs text-muted-foreground max-w-[100px] truncate">
-                                {change.oldValue}
-                              </TableCell>
-                              <TableCell className="py-2 px-3">
-                                <ArrowRight className="h-3 w-3 text-muted-foreground" />
-                              </TableCell>
-                              <TableCell className="py-2 px-3 text-xs font-medium max-w-[100px] truncate">
-                                {change.newValue}
-                              </TableCell>
-                            </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
-                    </div>
-                  </div>
-                )}
-                
-                {changes.length === 0 && selectedLog.action === 'create' && (
-                  <p className="text-muted-foreground text-xs italic">Deal was created</p>
-                )}
-              </div>
-            );
-          })()}
+           {selectedLog && (() => {
+             const details = selectedLog.details as Record<string, any> | null;
+             const isManualEntry = details?.manual_entry === true;
+             const changes = parseFieldChanges(selectedLog.details);
+             const updaterName = selectedLog.user_id ? (displayNames[selectedLog.user_id] || 'Unknown') : '-';
+             
+             return (
+               <div className="space-y-4 text-sm">
+                 <div className="grid grid-cols-2 gap-3">
+                   <div>
+                     <span className="text-muted-foreground text-xs">Action / Type</span>
+                     <div className="flex items-center gap-1.5 mt-0.5">
+                       <span className={cn('w-2 h-2 rounded-full inline-block', getTypeDotColor(selectedLog.action))} />
+                       <p className="capitalize font-medium">{selectedLog.action.toLowerCase()}</p>
+                     </div>
+                   </div>
+                   <div>
+                     <span className="text-muted-foreground text-xs">Updated By</span>
+                     <p className="font-medium">{updaterName}</p>
+                   </div>
+                   <div className="col-span-2">
+                     <span className="text-muted-foreground text-xs">Time</span>
+                     <p>{format(new Date(selectedLog.created_at), 'PPpp')}</p>
+                   </div>
+                 </div>
+                 
+                 {/* Manual entry details (Note, Call, Meeting, Email) */}
+                 {isManualEntry && details?.message && (
+                   <div>
+                     <span className="text-muted-foreground text-xs block mb-1">Message</span>
+                     <p className="text-sm bg-muted/30 rounded-md p-2 whitespace-pre-wrap">{String(details.message)}</p>
+                   </div>
+                 )}
+
+                 {/* Action item status change details */}
+                 {details?.action_item_title && (
+                   <div>
+                     <span className="text-muted-foreground text-xs block mb-1">Action Item</span>
+                     <p className="text-sm font-medium">{String(details.action_item_title)}</p>
+                   </div>
+                 )}
+                 
+                 {/* Field changes table */}
+                 {changes.length > 0 && (
+                   <div>
+                     <span className="text-muted-foreground text-xs block mb-2">Field Changes</span>
+                     <div className="border rounded-lg overflow-hidden">
+                       <Table>
+                         <TableHeader>
+                           <TableRow className="bg-muted/50">
+                             <TableHead className="h-8 px-3 text-xs font-medium">Field</TableHead>
+                             <TableHead className="h-8 px-3 text-xs font-medium">Old Value</TableHead>
+                             <TableHead className="h-8 px-3 text-xs font-medium w-6"></TableHead>
+                             <TableHead className="h-8 px-3 text-xs font-medium">New Value</TableHead>
+                           </TableRow>
+                         </TableHeader>
+                         <TableBody>
+                           {changes.map((change, idx) => (
+                             <TableRow key={idx}>
+                               <TableCell className="py-2 px-3 text-xs font-medium capitalize">
+                                 {change.field}
+                               </TableCell>
+                               <TableCell className="py-2 px-3 text-xs text-muted-foreground whitespace-normal break-words">
+                                 {change.oldValue}
+                               </TableCell>
+                               <TableCell className="py-2 px-3">
+                                 <ArrowRight className="h-3 w-3 text-muted-foreground" />
+                               </TableCell>
+                               <TableCell className="py-2 px-3 text-xs font-medium whitespace-normal break-words">
+                                 {change.newValue}
+                               </TableCell>
+                             </TableRow>
+                           ))}
+                         </TableBody>
+                       </Table>
+                     </div>
+                   </div>
+                 )}
+
+                 {/* Show raw details for entries with no changes and no message */}
+                 {changes.length === 0 && !isManualEntry && selectedLog.action === 'create' && (
+                   <p className="text-muted-foreground text-xs italic">Deal was created</p>
+                 )}
+                 {changes.length === 0 && !isManualEntry && selectedLog.action !== 'create' && details && !details.action_item_title && (
+                   <div>
+                     <span className="text-muted-foreground text-xs block mb-1">Details</span>
+                     <pre className="text-xs bg-muted/30 rounded-md p-2 whitespace-pre-wrap overflow-auto max-h-40">{JSON.stringify(details, null, 2)}</pre>
+                   </div>
+                 )}
+               </div>
+             );
+           })()}
          </DialogContent>
        </Dialog>
        
