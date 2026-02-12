@@ -258,18 +258,9 @@ export const DealExpandedPanel = ({ deal, onClose, onOpenActionItemModal, addDet
       originalLog: log
     }));
 
-    const completedAsHistory = completedActionItems.map((item) => ({
-      id: `completed-${item.id}`,
-      message: `${item.title} - ${item.status}`,
-      user_id: item.assigned_to,
-      created_at: item.created_at,
-      isCompletedAction: true,
-      originalLog: null as AuditLog | null
-    }));
-
-    return [...mappedLogs, ...completedAsHistory].
+    return [...mappedLogs].
     sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
-  }, [manualAndStatusLogs, completedActionItems]);
+  }, [manualAndStatusLogs]);
 
   // Auto-scroll both sections to bottom when data changes
   useEffect(() => {
@@ -569,7 +560,7 @@ export const DealExpandedPanel = ({ deal, onClose, onOpenActionItemModal, addDet
 
                   mergedHistory.map((entry, index) =>
                   <TableRow key={entry.id} className="text-xs group cursor-pointer hover:bg-muted/30">
-                        <TableCell className="py-1.5 px-1 text-[10px] text-muted-foreground text-center w-8">{index + 1}</TableCell>
+                        <TableCell className="py-1.5 px-1 text-[11px] text-muted-foreground text-center w-8">{index + 1}</TableCell>
                         <TableCell className="py-1.5 px-2">
                           {entry.originalLog ?
                       <button
@@ -579,15 +570,15 @@ export const DealExpandedPanel = ({ deal, onClose, onOpenActionItemModal, addDet
                               {entry.message}
                             </button> :
 
-                      <span className="text-left whitespace-normal break-words text-xs text-muted-foreground italic">
+                      <span className="text-left whitespace-normal break-words text-xs text-muted-foreground">
                               {entry.message}
                             </span>
                       }
                         </TableCell>
-                        <TableCell className="py-1.5 px-2 text-muted-foreground whitespace-nowrap text-[10px]">
+                        <TableCell className="py-1.5 px-2 text-muted-foreground whitespace-nowrap text-[11px]">
                           {entry.user_id ? displayNames[entry.user_id] || getUserDisplayName(entry.user_id) || '...' : '-'}
                         </TableCell>
-                        <TableCell className="py-1.5 px-2 text-[10px] text-muted-foreground whitespace-nowrap w-24">
+                        <TableCell className="py-1.5 px-2 text-[11px] text-muted-foreground whitespace-nowrap w-24">
                           {formatHistoryDateTime(new Date(entry.created_at))}
                         </TableCell>
                         <TableCell onClick={(e) => e.stopPropagation()} className="py-1.5 px-1 w-8">
@@ -653,7 +644,7 @@ export const DealExpandedPanel = ({ deal, onClose, onOpenActionItemModal, addDet
                     className="text-xs group cursor-pointer hover:bg-muted/30"
                     onClick={() => handleActionItemClick(item)}>
 
-                        <TableCell className="py-1.5 px-1 text-[10px] text-muted-foreground text-center w-8">{index + 1}</TableCell>
+                        <TableCell className="py-1.5 px-1 text-[11px] text-muted-foreground text-center w-8">{index + 1}</TableCell>
 
                         {/* Task */}
                         <TableCell className="py-1.5 px-2">

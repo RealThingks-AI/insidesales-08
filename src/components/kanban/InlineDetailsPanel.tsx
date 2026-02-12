@@ -23,7 +23,11 @@ export function InlineDetailsPanel({
 }: InlineDetailsPanelProps) {
   return (
     <div 
-      className="flex flex-col overflow-y-auto"
+      className={cn(
+        "flex flex-col overflow-y-auto",
+        transition === 'expanding' && 'inline-details-entering',
+        transition === 'collapsing' && 'inline-details-exiting',
+      )}
       style={{ 
         minHeight: '550px',
         maxHeight: 'calc(100vh - 140px)',
