@@ -9,6 +9,8 @@ interface InlineDetailsPanelProps {
   transition: TransitionState;
   onClose: () => void;
   onOpenActionItemModal?: (actionItem?: any) => void;
+  addDetailOpen?: boolean;
+  onAddDetailOpenChange?: (open: boolean) => void;
 }
 
 export function InlineDetailsPanel({
@@ -16,6 +18,8 @@ export function InlineDetailsPanel({
   transition,
   onClose,
   onOpenActionItemModal,
+  addDetailOpen,
+  onAddDetailOpenChange,
 }: InlineDetailsPanelProps) {
   return (
     <div 
@@ -29,6 +33,8 @@ export function InlineDetailsPanel({
         deal={deal} 
         onClose={onClose}
         onOpenActionItemModal={onOpenActionItemModal}
+        addDetailOpen={addDetailOpen}
+        onAddDetailOpenChange={onAddDetailOpenChange}
       />
     </div>
   );

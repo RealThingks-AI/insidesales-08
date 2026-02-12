@@ -1,5 +1,5 @@
 import { Fragment, useMemo } from "react";
-import { DealStage, STAGE_COLORS } from "@/types/deal";
+import { DealStage, STAGE_COLORS, STAGE_BG_COLORS } from "@/types/deal";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
 import { Plus } from "lucide-react";
@@ -16,6 +16,7 @@ interface AnimatedStageHeadersProps {
   selectedDeals: Set<string>;
   onSelectAllInStage: (stage: DealStage, checked: boolean) => void;
   onCreateDeal: (stage: DealStage) => void;
+  onAddDetail?: () => void;
 }
 
 export function AnimatedStageHeaders({
@@ -27,6 +28,7 @@ export function AnimatedStageHeaders({
   selectedDeals,
   onSelectAllInStage,
   onCreateDeal,
+  onAddDetail,
 }: AnimatedStageHeadersProps) {
   const isExpanding = transition === 'expanding';
   const isCollapsing = transition === 'collapsing';
@@ -83,6 +85,7 @@ export function AnimatedStageHeaders({
             <div
               className={cn(
                 'stage-header-item p-2 rounded-lg border transition-all duration-300',
+                STAGE_BG_COLORS[stage],
                 STAGE_COLORS[stage],
                 isActiveStage && (isExpanding || isExpanded || isCollapsing) && 'w-[280px] flex-shrink-0',
               )}
@@ -129,6 +132,15 @@ export function AnimatedStageHeaders({
               >
                 <div className="flex items-center justify-between">
                   <h3 className="font-semibold text-sm text-muted-foreground">Details</h3>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => onAddDetail?.()}
+                    className="h-7 px-2 text-sm font-semibold text-muted-foreground hover:text-foreground"
+                  >
+                    <Plus className="w-3.5 h-3.5 mr-1" />
+                    Add
+                  </Button>
                 </div>
               </div>
             )}
