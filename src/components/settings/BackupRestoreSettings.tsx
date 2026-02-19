@@ -10,7 +10,7 @@ import { useUserRole } from "@/hooks/useUserRole";
 import { useAuth } from "@/hooks/useAuth";
 import { 
   Database, Download, RefreshCw, ShieldAlert,
-  Clock, FileJson, CalendarClock, FileText, Users,
+  Clock, FileJson, CalendarClock, Users,
   Building2, Briefcase, CheckSquare, RotateCcw, Bell
 } from "lucide-react";
 import { format, addDays } from "date-fns";
@@ -56,7 +56,6 @@ interface BackupSchedule {
 const MODULES = [
   { id: 'contacts', name: 'Contacts', icon: Users, color: 'text-green-500' },
   { id: 'accounts', name: 'Accounts', icon: Building2, color: 'text-purple-500' },
-  { id: 'leads', name: 'Leads', icon: FileText, color: 'text-blue-500' },
   { id: 'deals', name: 'Deals', icon: Briefcase, color: 'text-orange-500' },
   { id: 'action_items', name: 'Tasks', icon: CheckSquare, color: 'text-cyan-500' },
   { id: 'notifications', name: 'Notifications', icon: Bell, color: 'text-yellow-500' },
@@ -163,7 +162,7 @@ const BackupRestoreSettings = () => {
   }, []);
 
   const fetchModuleCounts = useCallback(async () => {
-    const tables = ['contacts', 'accounts', 'leads', 'deals', 'action_items', 'notifications'];
+    const tables = ['contacts', 'accounts', 'deals', 'action_items', 'notifications'];
     const results: Record<string, number> = {};
     await Promise.all(tables.map(async (table) => {
       const { count } = await supabase.from(table as any).select('*', { count: 'exact', head: true });
