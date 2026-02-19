@@ -1,134 +1,86 @@
 
+## Remove Leads as a Standalone Module — Full Cleanup
 
-## Backup System - Complete Fix and Improvements
-
-### Issues Found
-
-1. **Scheduled Backups never fire** -- `is_enabled: true` but `last_run_at` and `next_run_at` are both null. No cron job or edge function exists to check the schedule and trigger backups.
-2. **Module Backup missing modules** -- UI only shows Contacts, Accounts, Deals, Tasks. Missing: Leads, Notifications.
-3. **Scheduled Backups have no scope setting** -- Can't choose full vs module backup for schedules.
-4. **Backup History has no scrollbar** -- Uses `max-h-[400px]` with `overflow-auto` but no proper ScrollArea component.
-5. **Delete option should be removed** from history per user request.
-6. **Restore logic issues** -- `profiles` and `user_roles` are in `BACKUP_TABLES` but missing from `DELETE_ORDER` and `INSERT_ORDER` in restore function. Also `security_audit_log` is not backed up.
-7. **Delete dialog and related code** still present but should be removed.
-8. **Storage download fails** for non-service-role clients (no storage RLS policies on backups bucket).
+Since Leads have been moved under Deals, multiple UI sections, settings, backup tools, notifications, and dropdowns still reference "Leads" as an independent module. Here is every affected file and the exact change needed.
 
 ---
 
-### Plan
+### 1. Backup & Restore Settings (`src/components/settings/BackupRestoreSettings.tsx`)
 
-#### 1. Add Leads and Notifications to Module Backup UI
+**Two issues:**
+- Line 59: The `MODULES` array includes `{ id: 'leads', name: 'Leads', ... }` — this shows Leads in the **Module Backup** card grid and the **Scope** dropdown.
+- Line 166: `fetchModuleCounts` queries the `leads` table to display the count badge.
 
-**File: `src/components/settings/BackupRestoreSettings.tsx`**
-- Add to `MODULES` array:
-  - `{ id: 'leads', name: 'Leads', icon: FileText, color: 'text-blue-500' }`
-  - `{ id: 'notifications', name: 'Notifications', icon: Bell, color: 'text-yellow-500' }`
-- Add `Bell` to lucide imports
-- Update `fetchModuleCounts` to include `leads` and `notifications` tables
-- Change grid from `md:grid-cols-5` to `md:grid-cols-6` to fit 6 modules
-
-#### 2. Add `leads` module mapping to edge function
-
-**File: `supabase/functions/create-backup/index.ts`**
-- Add `leads: ['leads', 'lead_action_items']` to `MODULE_TABLES`
-- Add `security_audit_log` to `BACKUP_TABLES`
-
-#### 3. Fix Restore logic -- add missing tables to DELETE_ORDER and INSERT_ORDER
-
-**File: `supabase/functions/restore-backup/index.ts`**
-- Add `profiles` and `user_roles` to both `DELETE_ORDER` and `INSERT_ORDER` in correct positions
-- Add `security_audit_log` to both arrays
-- For `DELETE_ORDER`: `profiles` and `user_roles` should come after `user_sessions` (they are parent-like)
-- For `INSERT_ORDER`: `profiles` and `user_roles` should come before `user_preferences` (they are parents)
-
-#### 4. Scheduled Backups -- create actual cron infrastructure
-
-**a. New edge function: `supabase/functions/scheduled-backup/index.ts`**
-- Reads `backup_schedules` where `is_enabled = true` and `next_run_at <= now()`
-- For each due schedule, calls the `create-backup` function logic internally (fetches tables, uploads to storage)
-- Supports `backup_scope` (full or module name) from the schedule record
-- Updates `last_run_at = now()` and computes `next_run_at` based on frequency
-- Uses service role key, no JWT verification needed
-
-**b. Database migration:**
-- Enable `pg_cron` and `pg_net` extensions
-- Add `backup_scope` column (text, default 'full') and `backup_module` column (text, nullable) to `backup_schedules`
-- Create hourly cron job that calls `scheduled-backup` edge function
-
-**c. Add to `supabase/config.toml`:**
-```
-[functions.scheduled-backup]
-verify_jwt = false
-```
-
-**d. Update Schedule UI** in `BackupRestoreSettings.tsx`:
-- Add frequency dropdown (Daily, Every 2 Days, Weekly)
-- Add scope dropdown (Full System, or each module name)
-- Show last run and next run timestamps
-- Save `backup_scope` and `backup_module` to the schedule record
-
-#### 5. Backup History -- ScrollArea and remove delete
-
-**File: `src/components/settings/BackupRestoreSettings.tsx`**
-- Import `ScrollArea` component
-- Wrap the history table in `<ScrollArea className="h-[400px]">` for proper scrollbar
-- Remove the Delete button from each history row (lines 516-527)
-- Remove `handleDeleteClick`, `handleDeleteConfirm`, delete-related state, and the Delete AlertDialog
-- Add a status badge column showing completed/failed/in_progress with colors
-- Add a refresh button to the history header
-
-#### 6. Storage RLS -- allow admin downloads
-
-**Database migration:**
-- Add SELECT policy on `storage.objects` for the `backups` bucket allowing authenticated users who are admins (using `is_user_admin()` function) to read/download files
+**Fix:** Remove the `leads` entry from the `MODULES` array. Remove `'leads'` from the `fetchModuleCounts` tables array. This will hide the Leads card from Module Backup and remove Leads from the Scheduled Backup Scope dropdown — consistent with the screenshot shown.
 
 ---
 
-### Technical Details
+### 2. Notifications Page (`src/pages/Notifications.tsx`)
 
-**Files to create:**
-- `supabase/functions/scheduled-backup/index.ts`
+**Three issues:**
+- Lines 71–72: `module_type === 'leads'` navigates to `/leads?highlight=...` (dead route).
+- Line 76: `notification.lead_id` navigates to `/leads?highlight=...` (dead route).
+- Line 82: `notification_type === 'lead_update'` navigates to `/leads` (dead route).
+- Line 220: Empty state text says "action items and leads" — Leads no longer a standalone module.
 
-**Files to modify:**
-- `supabase/functions/create-backup/index.ts` -- add `leads` module, add `security_audit_log`
-- `supabase/functions/restore-backup/index.ts` -- add `profiles`, `user_roles`, `security_audit_log` to ordering arrays
-- `src/components/settings/BackupRestoreSettings.tsx` -- add modules, scheduled backup scope UI, ScrollArea for history, remove delete
-- `supabase/config.toml` -- add `scheduled-backup` function config
+**Fix:** Change all `/leads` navigations to `/deals`. Update empty state text to "action items and deals".
 
-**Database migrations:**
-1. Enable `pg_cron` and `pg_net` extensions
-2. Add `backup_scope` and `backup_module` columns to `backup_schedules`
-3. Create cron job: hourly call to `scheduled-backup` edge function
-4. Add storage RLS policy for backups bucket admin read access
+---
 
-**Scheduled backup edge function logic:**
-```text
-1. Read backup_schedules where is_enabled = true
-2. For each schedule where next_run_at <= now():
-   a. Determine tables based on backup_scope/backup_module
-   b. Fetch all data, create JSON, upload to storage
-   c. Insert backup record with backup_type = 'scheduled'
-   d. Update schedule: last_run_at = now(), next_run_at = computed
-3. Return summary
-```
+### 3. Notification Bell (`src/components/NotificationBell.tsx`)
 
-**Restore ordering fix:**
-```text
-DELETE_ORDER (children first):
-  deal_action_items, lead_action_items, action_items,
-  notifications, notification_preferences, saved_filters,
-  column_preferences, dashboard_preferences, user_sessions,
-  security_audit_log,
-  deals, contacts, leads, accounts,
-  user_preferences, yearly_revenue_targets, page_permissions,
-  keep_alive, profiles, user_roles
+Already partially fixed (`leads` module → `/deals`) but `lead_id` fallback also navigates to `/deals` — this is already correct. No change needed here.
 
-INSERT_ORDER (parents first):
-  profiles, user_roles,
-  accounts, leads, contacts, deals,
-  lead_action_items, deal_action_items, action_items,
-  notifications, notification_preferences, saved_filters,
-  column_preferences, dashboard_preferences, user_sessions,
-  user_preferences, yearly_revenue_targets, page_permissions,
-  keep_alive, security_audit_log
-```
+---
+
+### 4. Profile Section — Default Module Dropdown (`src/components/settings/account/ProfileSection.tsx`)
+
+**Issue:** Line 282: `<SelectItem value="leads">Leads</SelectItem>` — shows Leads as a startup page option which no longer exists.
+
+**Fix:** Remove the `leads` SelectItem. The `/leads` route already redirects to `/deals`, but it's confusing UX to show it as an option. Remove it from the dropdown.
+
+---
+
+### 5. CRMSidebar (`src/components/CRMSidebar.tsx`)
+
+**Issue:** Line 27: `{ icon: UserPlus, label: 'Leads', path: '/leads' }` — this is a legacy sidebar still showing Leads as a navigation item.
+
+**Fix:** Remove the Leads nav item from this sidebar. (Note: The active `AppSidebar.tsx` already doesn't include Leads — this file appears to be a legacy component but should still be cleaned up.)
+
+---
+
+### 6. Audit Log Utils (`src/components/settings/audit/auditLogUtils.ts`)
+
+**Issue:** Line 100: `leads: 'Leads'` in the readable resource type map. This is **intentionally kept** — old audit log entries still reference `resource_type: 'leads'` and must remain displayable in the Audit Logs section. No change needed here (historical logs must still render).
+
+---
+
+### 7. Action Items Table (`src/components/ActionItemsTable.tsx`)
+
+**Issue:** Line 452: Icon logic `if (t === 'lead' || t === 'leads')` renders a `UserPlus` icon for action items linked to the legacy leads module. Since leads still exist in the database as a `module_type`, this display logic should be kept for backward compatibility. No change needed.
+
+---
+
+### 8. Import/Export Hooks (internal logic — keep as-is)
+
+Files like `leadsCSVExporter.ts`, `leadsCSVProcessor.ts`, `genericCSVProcessor.ts`, `columnConfig.ts`, `headerMapper.ts`, `duplicateChecker.ts` still reference `leads` as a table-level concept. These are **backend data processing utilities** that interact directly with the `leads` table in the database (which still exists). These should NOT be changed — removing them would break any Leads backup/restore and import/export operations.
+
+---
+
+### Summary of Files to Change
+
+| File | Change |
+|---|---|
+| `src/components/settings/BackupRestoreSettings.tsx` | Remove `leads` from `MODULES` array and `fetchModuleCounts` tables |
+| `src/pages/Notifications.tsx` | Fix 3 `/leads` navigations → `/deals`; update empty state text |
+| `src/components/settings/account/ProfileSection.tsx` | Remove `<SelectItem value="leads">Leads</SelectItem>` |
+| `src/components/CRMSidebar.tsx` | Remove Leads nav item |
+
+### Files NOT changed (by design)
+
+- `src/components/AppSidebar.tsx` — Already correct, no Leads item
+- `src/App.tsx` — Already has `/leads` → `/deals` redirect, keep it
+- `src/components/NotificationBell.tsx` — Already routes leads to `/deals`
+- `src/components/settings/audit/auditLogUtils.ts` — Keeps `leads: 'Leads'` for historical audit log display
+- Import/Export hooks — Internal data layer, directly uses the `leads` DB table
+- `src/components/ActionItemsTable.tsx` — Keeps leads icon for backward-compatible display of old linked tasks
