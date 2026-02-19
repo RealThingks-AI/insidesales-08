@@ -72,32 +72,30 @@ export const SecurityProvider = ({ children }: SecurityProviderProps) => {
     fetchUserRole();
   }, [user]);
 
+  // Ref to prevent duplicate session logging per user+role combination
+  const sessionLoggedRef = React.useRef<string | null>(null);
+
   useEffect(() => {
-    if (user && userRole) {
-      // Log user session start
+    if (!user || !userRole) {
+      sessionLoggedRef.current = null;
+      return;
+    }
+
+    // Only log SESSION_START once per unique user+role session
+    const sessionKey = `${user.id}-${userRole}`;
+    if (sessionLoggedRef.current !== sessionKey) {
+      sessionLoggedRef.current = sessionKey;
       logSecurityEvent('SESSION_START', 'auth', user.id, {
         login_time: new Date().toISOString(),
         user_agent: navigator.userAgent,
         role: userRole,
         user_email: user.email
       });
-
-      // Set up session monitoring
-      const handleVisibilityChange = () => {
-        if (document.hidden) {
-          logSecurityEvent('SESSION_INACTIVE', 'auth', user.id);
-        } else {
-          logSecurityEvent('SESSION_ACTIVE', 'auth', user.id);
-        }
-      };
-
-      document.addEventListener('visibilitychange', handleVisibilityChange);
-
-      return () => {
-        document.removeEventListener('visibilitychange', handleVisibilityChange);
-        logSecurityEvent('SESSION_END', 'auth', user.id);
-      };
     }
+
+    return () => {
+      logSecurityEvent('SESSION_END', 'auth', user.id);
+    };
   }, [user, userRole, logSecurityEvent]);
 
   const value = {

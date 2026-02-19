@@ -75,11 +75,19 @@ function computeNextRun(frequency: string, timeOfDay: string): string {
   return next.toISOString();
 }
 
+const LEGACY_MODULE_LABELS: Record<string, string> = {
+  leads: 'Leads (Legacy)',
+};
+
 function getBackupLabel(backup: Backup): string {
   if (backup.backup_type === 'pre_restore') return '🛡️ Safety Snapshot';
   if ((backup.backup_type === 'module' || backup.backup_type === 'scheduled') && backup.module_name) {
     const mod = MODULES.find(m => m.id === backup.module_name);
-    return mod ? `${backup.backup_type === 'scheduled' ? '⏰ ' : ''}${mod.name}` : backup.module_name;
+    const prefix = backup.backup_type === 'scheduled' ? '⏰ ' : '';
+    if (mod) return `${prefix}${mod.name}`;
+    // Fallback for legacy module names (e.g. 'leads' removed from active MODULES)
+    const legacyLabel = LEGACY_MODULE_LABELS[backup.module_name] || backup.module_name;
+    return `${prefix}${legacyLabel}`;
   }
   if (backup.backup_type === 'scheduled') return '⏰ Scheduled Full';
   return 'Full Backup';
