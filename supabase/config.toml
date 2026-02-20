@@ -1,1 +1,4 @@
 project_id = "nreslricievaamrwfrlx"
+
+[functions.scheduled-backup]
+verify_jwt = false
