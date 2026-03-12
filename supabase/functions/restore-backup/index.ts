@@ -5,6 +5,9 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
+// Tables that should NEVER be restored from backups (noise/session data)
+const SKIP_TABLES = ['security_audit_log', 'user_sessions', 'keep_alive']
+
 // Tables in correct deletion order (children first, parents last)
 const DELETE_ORDER = [
   'deal_action_items', 'lead_action_items', 'action_items',
@@ -120,7 +123,7 @@ Deno.serve(async (req) => {
     // PRE-RESTORE SAFETY BACKUP
     // ═══════════════════════════════════════════════════════════════
     console.log('Creating pre-restore safety backup...')
-    const tablesToRestore = Object.keys(backupData)
+    const tablesToRestore = Object.keys(backupData).filter(t => !SKIP_TABLES.includes(t))
     const safetyBackupData: Record<string, any[]> = {}
     const safetyManifest: Record<string, number> = {}
     let safetyTotalRecords = 0

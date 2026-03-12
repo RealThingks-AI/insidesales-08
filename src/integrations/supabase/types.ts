@@ -379,12 +379,59 @@ export type Database = {
           },
         ]
       }
+      deal_stakeholders: {
+        Row: {
+          contact_id: string
+          created_at: string | null
+          created_by: string | null
+          deal_id: string
+          id: string
+          note: string | null
+          role: string
+        }
+        Insert: {
+          contact_id: string
+          created_at?: string | null
+          created_by?: string | null
+          deal_id: string
+          id?: string
+          note?: string | null
+          role: string
+        }
+        Update: {
+          contact_id?: string
+          created_at?: string | null
+          created_by?: string | null
+          deal_id?: string
+          id?: string
+          note?: string | null
+          role?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "deal_stakeholders_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "deal_stakeholders_deal_id_fkey"
+            columns: ["deal_id"]
+            isOneToOne: false
+            referencedRelation: "deals"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       deals: {
         Row: {
           account_id: string | null
           action_items: string | null
           budget: string | null
+          budget_owner_contact_id: string | null
           business_value: string | null
+          champion_contact_id: string | null
           closing: string | null
           created_at: string | null
           created_by: string
@@ -401,6 +448,7 @@ export type Database = {
           handoff_status: string | null
           id: string
           implementation_start_date: string | null
+          influencer_contact_id: string | null
           internal_comment: string | null
           is_recurring: string | null
           lead_name: string | null
@@ -409,6 +457,7 @@ export type Database = {
           modified_at: string | null
           modified_by: string | null
           need_improvement: string | null
+          objector_contact_id: string | null
           priority: number | null
           probability: number | null
           project_duration: number | null
@@ -433,7 +482,9 @@ export type Database = {
           account_id?: string | null
           action_items?: string | null
           budget?: string | null
+          budget_owner_contact_id?: string | null
           business_value?: string | null
+          champion_contact_id?: string | null
           closing?: string | null
           created_at?: string | null
           created_by: string
@@ -450,6 +501,7 @@ export type Database = {
           handoff_status?: string | null
           id?: string
           implementation_start_date?: string | null
+          influencer_contact_id?: string | null
           internal_comment?: string | null
           is_recurring?: string | null
           lead_name?: string | null
@@ -458,6 +510,7 @@ export type Database = {
           modified_at?: string | null
           modified_by?: string | null
           need_improvement?: string | null
+          objector_contact_id?: string | null
           priority?: number | null
           probability?: number | null
           project_duration?: number | null
@@ -482,7 +535,9 @@ export type Database = {
           account_id?: string | null
           action_items?: string | null
           budget?: string | null
+          budget_owner_contact_id?: string | null
           business_value?: string | null
+          champion_contact_id?: string | null
           closing?: string | null
           created_at?: string | null
           created_by?: string
@@ -499,6 +554,7 @@ export type Database = {
           handoff_status?: string | null
           id?: string
           implementation_start_date?: string | null
+          influencer_contact_id?: string | null
           internal_comment?: string | null
           is_recurring?: string | null
           lead_name?: string | null
@@ -507,6 +563,7 @@ export type Database = {
           modified_at?: string | null
           modified_by?: string | null
           need_improvement?: string | null
+          objector_contact_id?: string | null
           priority?: number | null
           probability?: number | null
           project_duration?: number | null
@@ -536,6 +593,123 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      email_history: {
+        Row: {
+          account_id: string | null
+          body: string | null
+          bounce_reason: string | null
+          bounce_type: string | null
+          bounced_at: string | null
+          click_count: number | null
+          clicked_at: string | null
+          contact_id: string | null
+          created_at: string | null
+          delivered_at: string | null
+          id: string
+          is_valid_open: boolean | null
+          last_reply_at: string | null
+          lead_id: string | null
+          open_count: number | null
+          opened_at: string | null
+          recipient_email: string
+          recipient_name: string | null
+          replied_at: string | null
+          reply_count: number | null
+          sender_email: string
+          sent_at: string
+          sent_by: string | null
+          status: string
+          subject: string
+          unique_opens: number | null
+        }
+        Insert: {
+          account_id?: string | null
+          body?: string | null
+          bounce_reason?: string | null
+          bounce_type?: string | null
+          bounced_at?: string | null
+          click_count?: number | null
+          clicked_at?: string | null
+          contact_id?: string | null
+          created_at?: string | null
+          delivered_at?: string | null
+          id?: string
+          is_valid_open?: boolean | null
+          last_reply_at?: string | null
+          lead_id?: string | null
+          open_count?: number | null
+          opened_at?: string | null
+          recipient_email: string
+          recipient_name?: string | null
+          replied_at?: string | null
+          reply_count?: number | null
+          sender_email: string
+          sent_at?: string
+          sent_by?: string | null
+          status?: string
+          subject: string
+          unique_opens?: number | null
+        }
+        Update: {
+          account_id?: string | null
+          body?: string | null
+          bounce_reason?: string | null
+          bounce_type?: string | null
+          bounced_at?: string | null
+          click_count?: number | null
+          clicked_at?: string | null
+          contact_id?: string | null
+          created_at?: string | null
+          delivered_at?: string | null
+          id?: string
+          is_valid_open?: boolean | null
+          last_reply_at?: string | null
+          lead_id?: string | null
+          open_count?: number | null
+          opened_at?: string | null
+          recipient_email?: string
+          recipient_name?: string | null
+          replied_at?: string | null
+          reply_count?: number | null
+          sender_email?: string
+          sent_at?: string
+          sent_by?: string | null
+          status?: string
+          subject?: string
+          unique_opens?: number | null
+        }
+        Relationships: []
+      }
+      email_templates: {
+        Row: {
+          body: string
+          created_at: string | null
+          created_by: string | null
+          id: string
+          name: string
+          subject: string
+          updated_at: string | null
+        }
+        Insert: {
+          body: string
+          created_at?: string | null
+          created_by?: string | null
+          id?: string
+          name: string
+          subject: string
+          updated_at?: string | null
+        }
+        Update: {
+          body?: string
+          created_at?: string | null
+          created_by?: string | null
+          id?: string
+          name?: string
+          subject?: string
+          updated_at?: string | null
+        }
+        Relationships: []
       }
       keep_alive: {
         Row: {
@@ -673,10 +847,12 @@ export type Database = {
           accounts_notifications: boolean | null
           contacts_notifications: boolean | null
           created_at: string | null
+          daily_reminder_time: string | null
           deal_updates: boolean | null
           email_notifications: boolean | null
           id: string
           in_app_notifications: boolean | null
+          last_reminder_sent_at: string | null
           lead_assigned: boolean | null
           leads_notifications: boolean | null
           meeting_reminders: boolean | null
@@ -691,10 +867,12 @@ export type Database = {
           accounts_notifications?: boolean | null
           contacts_notifications?: boolean | null
           created_at?: string | null
+          daily_reminder_time?: string | null
           deal_updates?: boolean | null
           email_notifications?: boolean | null
           id?: string
           in_app_notifications?: boolean | null
+          last_reminder_sent_at?: string | null
           lead_assigned?: boolean | null
           leads_notifications?: boolean | null
           meeting_reminders?: boolean | null
@@ -709,10 +887,12 @@ export type Database = {
           accounts_notifications?: boolean | null
           contacts_notifications?: boolean | null
           created_at?: string | null
+          daily_reminder_time?: string | null
           deal_updates?: boolean | null
           email_notifications?: boolean | null
           id?: string
           in_app_notifications?: boolean | null
+          last_reminder_sent_at?: string | null
           lead_assigned?: boolean | null
           leads_notifications?: boolean | null
           meeting_reminders?: boolean | null

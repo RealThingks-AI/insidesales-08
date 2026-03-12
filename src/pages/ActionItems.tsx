@@ -65,7 +65,7 @@ export default function ActionItems() {
   // Handle highlight from notification click
   useEffect(() => {
     if (highlightId && !isLoading && !highlightProcessed) {
-      const item = actionItems.find(a => a.id === highlightId);
+      const item = actionItems.find(a => a.id === highlightId || a.title === highlightId);
       if (item) {
         setEditingItem(item);
         setModalOpen(true);
@@ -93,6 +93,11 @@ export default function ActionItems() {
   const [itemToDelete, setItemToDelete] = useState<string | null>(null);
   const [bulkDeleteDialogOpen, setBulkDeleteDialogOpen] = useState(false);
   const hasActiveFilters = filters.module_type !== 'all' || filters.priority !== 'all' || filters.status !== 'all' || filters.assigned_to !== 'all' || filters.search !== '';
+
+  // Reset pagination when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [filters.module_type, filters.priority, filters.status, filters.assigned_to, filters.search, filters.showArchived]);
 
   // Sort action items
   const sortedActionItems = [...actionItems].sort((a, b) => {
@@ -136,7 +141,9 @@ export default function ActionItems() {
     setModalOpen(true);
   };
   const handleEdit = (item: ActionItem) => {
-    setEditingItem(item);
+    // Look up fresh data from current actionItems to avoid stale modal
+    const freshItem = actionItems.find(a => a.id === item.id) || item;
+    setEditingItem(freshItem);
     setModalOpen(true);
   };
   const handleSave = async (data: CreateActionItemInput) => {
@@ -162,28 +169,39 @@ export default function ActionItems() {
     setDeleteDialogOpen(false);
   };
   const handleStatusChange = async (id: string, status: ActionItemStatus) => {
-    await updateActionItem({
-      id,
-      status
-    });
+    try {
+      await updateActionItem({ id, status });
+      // Inform user when item moves to Completed view
+      if (status === 'Completed' && !filters.showArchived) {
+        toast({
+          title: "Item completed",
+          description: "Moved to the Completed view.",
+        });
+      }
+    } catch (error) {
+      console.error('Failed to update status:', error);
+    }
   };
   const handlePriorityChange = async (id: string, priority: ActionItemPriority) => {
-    await updateActionItem({
-      id,
-      priority
-    });
+    try {
+      await updateActionItem({ id, priority });
+    } catch (error) {
+      console.error('Failed to update priority:', error);
+    }
   };
   const handleAssignedToChange = async (id: string, userId: string | null) => {
-    await updateActionItem({
-      id,
-      assigned_to: userId
-    });
+    try {
+      await updateActionItem({ id, assigned_to: userId });
+    } catch (error) {
+      console.error('Failed to update assignee:', error);
+    }
   };
   const handleDueDateChange = async (id: string, date: string | null) => {
-    await updateActionItem({
-      id,
-      due_date: date
-    });
+    try {
+      await updateActionItem({ id, due_date: date });
+    } catch (error) {
+      console.error('Failed to update due date:', error);
+    }
   };
   const handleBulkComplete = async () => {
     await bulkUpdateStatus({

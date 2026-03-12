@@ -1,165 +1,91 @@
 
 
-## Comprehensive Backup, Restore & Audit Log Fix
+## Fix Note Editor Bullet Point & Stakeholders Layout Issues
 
-### Problem Summary
+### Issues Found
 
-The `security_audit_log` table has **26,152 rows**, with **25,135 being session noise**:
-- SESSION_START: 11,433 (fires on every re-render due to missing dedup guard)
-- SESSION_END: 9,249 (fires in useEffect cleanup on every re-render)
-- SESSION_INACTIVE: 2,275 (fires on every tab switch)
-- SESSION_ACTIVE: 2,178 (fires on every tab switch)
-- Actual useful CRUD logs: ~1,000
+1. **Bullet point moves when typing**: `autoFocus` on the Textarea (line 633) places the cursor at position 0 (before `"• "`), so typing inserts text before the bullet instead of after it.
 
-The backup system includes operational tables (`user_sessions`, `keep_alive`) inflating record counts, the `leads` module is listed separately despite being merged into Deals, restore logic has ID-type bugs, and the scheduled backup edge function does not exist.
+2. **Notes panel lacks proper scrollbar**: The notes summary panel (line 580-679) has a `max-h-[280px]` on the inner div but the outer wrapper has no scroll constraint, so it still pushes content.
 
----
+3. **Stakeholders section grows unbounded**: The `StakeholdersSection` component has no max-height. When the Notes panel is open with many notes, it consumes all vertical space, squishing the Updates and Action Items sections to near-zero height.
 
-### Changes by File
+### Changes (single file: `src/components/DealExpandedPanel.tsx`)
 
-#### 1. `src/components/SecurityProvider.tsx` -- Stop audit log noise
+#### Fix 1: Bullet cursor positioning (line 628-634)
 
-**Problem:** SESSION_START fires on every re-render (no dedup), SESSION_END fires in cleanup on every re-render, and SESSION_ACTIVE/SESSION_INACTIVE fire on every tab switch. This created 25,000+ useless rows.
+Replace `autoFocus` on the Textarea with a `ref` callback that focuses the element AND places the cursor at the end of the text (after `"• "`):
 
-**Fix:**
-- Add a `useRef` guard so SESSION_START only fires once per user session
-- Remove the visibility change listener entirely (SESSION_ACTIVE/SESSION_INACTIVE are not actionable)
-- Remove SESSION_END from the cleanup (it fires on re-renders, not actual logouts)
-- Use the reference file pattern with `usePermissions()` for role instead of a separate fetch
-
-#### 2. `src/hooks/useSecurityAudit.tsx` -- Fix redundant auth calls
-
-**Problem:** Every call to `logSecurityEvent` makes a network call to `supabase.auth.getUser()` before logging. This is wasteful since the caller already has the user context.
-
-**Fix:** Use the cached `user` from `useAuth()` hook (as the reference file does) instead of calling `supabase.auth.getUser()` on every log. Use fire-and-forget pattern (no await on the RPC call) to avoid blocking the UI.
-
-#### 3. `supabase/functions/create-backup/index.ts` -- Fix backup scope
-
-**Problem:**
-- `BACKUP_TABLES` includes `user_sessions` and `keep_alive` (operational/ephemeral)
-- `MODULE_TABLES.deals` does not include `leads` and `lead_action_items` (Leads merged into Deals)
-- No `notifications` standalone module entry
-
-**Fix:**
-- Remove `user_sessions` and `keep_alive` from `BACKUP_TABLES`
-- Update `MODULE_TABLES`:
-
-```text
-contacts: ['contacts']
-accounts: ['accounts']
-deals: ['deals', 'deal_action_items', 'leads', 'lead_action_items']
-action_items: ['action_items']
-notifications: ['notifications', 'notification_preferences']
+```tsx
+<Textarea
+  value={noteText}
+  onChange={(e) => setNoteText(e.target.value)}
+  onKeyDown={handleNoteKeyDown}
+  className="min-h-[100px] text-xs resize-none"
+  ref={(el) => {
+    if (el) {
+      el.focus();
+      const len = el.value.length;
+      el.selectionStart = len;
+      el.selectionEnd = len;
+    }
+  }}
+/>
 ```
 
-#### 4. `supabase/functions/restore-backup/index.ts` -- Fix restore logic
+#### Fix 2: Constrain Stakeholders section height
 
-**Problem:**
-- Delete query uses `.neq('id', '00000000-0000-0000-0000-000000000000')` which crashes for tables with non-UUID IDs (e.g., `keep_alive` uses bigint)
-- `profiles` and `user_roles` are missing from `DELETE_ORDER` and `INSERT_ORDER` but are in `BACKUP_TABLES`
-- `user_sessions` and `keep_alive` still in the order lists
+Wrap the StakeholdersSection output in a container with `max-h` and `overflow-y-auto` so it scrolls when content is large. Change the outer div (line 462) from:
 
-**Fix:**
-- Change delete approach to `.delete().not('id', 'is', null)` (works for any column type)
-- Add `profiles` and `user_roles` to correct positions
-- Remove `user_sessions` and `keep_alive` from order lists
-
-Updated orders:
-
-```text
-DELETE_ORDER:
-  deal_action_items, lead_action_items, action_items,
-  notifications, notification_preferences, saved_filters,
-  column_preferences, dashboard_preferences,
-  deals, contacts, leads, accounts,
-  user_preferences, yearly_revenue_targets, page_permissions,
-  user_roles, profiles
-
-INSERT_ORDER:
-  profiles, user_roles,
-  accounts, leads, contacts, deals,
-  lead_action_items, deal_action_items, action_items,
-  notifications, notification_preferences, saved_filters,
-  column_preferences, dashboard_preferences,
-  user_preferences, yearly_revenue_targets, page_permissions
+```tsx
+<div className="px-3 pt-1.5 pb-1">
 ```
 
-#### 5. `supabase/functions/scheduled-backup/index.ts` -- Create new edge function
+to:
 
-**Problem:** No edge function exists to execute scheduled backups. The UI saves schedule config to `backup_schedules` but nothing triggers actual backups.
-
-**Fix:** Create new function that:
-- Reads `backup_schedules` for enabled schedules where `next_run_at <= now()`
-- Uses the same `BACKUP_TABLES` and `MODULE_TABLES` as `create-backup`
-- Respects `backup_scope` (full/module) and `backup_module` columns
-- Updates `last_run_at` and computes `next_run_at` after execution
-- Enforces the 30-backup limit
-
-#### 6. `supabase/config.toml` -- Register new function
-
-Add:
-```toml
-[functions.scheduled-backup]
-verify_jwt = false
+```tsx
+<div className="px-3 pt-1.5 pb-1 max-h-[45%] overflow-y-auto shrink-0">
 ```
 
-#### 7. `src/components/settings/BackupRestoreSettings.tsx` -- UI fixes
+However, since this is not inside a flex parent that uses percentage heights well, a better approach is to change the parent layout. The parent (line 1182) is:
 
-**7a. Legacy label fix:**
-Add a fallback map for old backups with `module_name: 'leads'`:
-
-```typescript
-const LEGACY_MODULE_LABELS: Record<string, string> = {
-  leads: 'Leads (Legacy)',
-};
+```tsx
+<div className="flex-1 min-h-0 flex flex-col overflow-hidden gap-1">
 ```
 
-Update `getBackupLabel` to use it.
+The fix: Make the StakeholdersSection a flex item that can shrink, and give it a max-height so it doesn't dominate. Change line 1184 from:
 
-**7b. Remove delete button:**
-- Remove the delete button from each backup row (lines 516-527)
-- Remove `handleDeleteClick`, `handleDeleteConfirm` functions
-- Remove delete confirmation dialog (lines 585-605)
-- Remove `deleting`, `showDeleteDialog` state
-- Remove `Trash2` from imports
-- The edge function's 30-backup limit handles cleanup automatically
-
-**7c. Increase scroll height:**
-Change `max-h-[400px]` to `max-h-[600px]` on line 466.
-
-**7d. Add backup scope selector to Scheduled Backups:**
-Add a scope dropdown (Full System / Contacts / Accounts / Deals / Action Items / Notifications) that saves to `backup_scope` and `backup_module` in `backup_schedules`. When "Full System" is selected: `backup_scope = 'full'`, `backup_module = null`. When a module is selected: `backup_scope = 'module'`, `backup_module = module_id`.
-
-**7e. Add frequency selector:**
-The schedule UI currently only shows time but not frequency. Add a frequency dropdown (Daily / Every 2 Days / Weekly).
-
-#### 8. Cron Job Setup (SQL)
-
-After the scheduled-backup edge function is deployed, set up `pg_cron` to invoke it every hour:
-
-```sql
-SELECT cron.schedule(
-  'scheduled-backup-check',
-  '0 * * * *',
-  $$
-  SELECT net.http_post(
-    url:='https://nreslricievaamrwfrlx.supabase.co/functions/v1/scheduled-backup',
-    headers:='{"Content-Type": "application/json", "Authorization": "Bearer <anon_key>"}'::jsonb,
-    body:='{}'::jsonb
-  ) as request_id;
-  $$
-);
+```tsx
+<StakeholdersSection deal={deal} queryClient={queryClient} />
 ```
 
----
+to wrap it in a constrained container:
 
-### Expected Impact
+```tsx
+<div className="shrink-0 max-h-[40%] overflow-y-auto">
+  <StakeholdersSection deal={deal} queryClient={queryClient} />
+</div>
+```
 
-| Metric | Before | After |
-|---|---|---|
-| Audit log growth/day | ~100+ session noise rows | Only meaningful CRUD events |
-| Full backup records | ~31,000+ | ~5,200 (no audit log, no operational tables) |
-| Deals module backup | Excludes leads data | Includes leads + lead_action_items |
-| Scheduled backups | Non-functional (no edge function) | Fully working with scope selection |
-| Restore on mixed ID types | Crashes on bigint tables | Works universally |
+This ensures:
+- Stakeholders section gets at most 40% of the panel height
+- When content exceeds that, a scrollbar appears
+- Updates and Action Items always get their fair share of space
+
+#### Fix 3: Ensure notes panel scrolls properly
+
+The notes summary panel (line 596) already has `max-h-[280px] overflow-y-auto`, but when inside the constrained container from Fix 2, this works correctly. No additional change needed here -- the outer scroll from Fix 2 handles it.
+
+### Summary
+
+| Change | Line(s) | Description |
+|--------|---------|-------------|
+| Replace `autoFocus` with ref callback | 628-634 | Cursor placed after bullet on open |
+| Wrap StakeholdersSection in scrollable container | 1184 | Max 40% height with scrollbar |
+
+### Technical Notes
+
+- The ref callback fires on every render, but since `el.focus()` is idempotent when already focused, this is harmless
+- The `max-h-[40%]` works because the parent has `flex-1 min-h-0` which resolves to an actual pixel height
+- Updates and Action Items sections keep their `flex-1 min-h-0` with `h-[220px]`, ensuring they share remaining space equally
 
