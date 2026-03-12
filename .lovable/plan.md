@@ -1,91 +1,54 @@
 
 
-## Fix Note Editor Bullet Point & Stakeholders Layout Issues
+## Fix: Action Item "Not Found" from Email Reminder Links
 
-### Issues Found
+### Root Cause
 
-1. **Bullet point moves when typing**: `autoFocus` on the Textarea (line 633) places the cursor at position 0 (before `"• "`), so typing inserts text before the bullet instead of after it.
+Two issues work together to cause this bug:
 
-2. **Notes panel lacks proper scrollbar**: The notes summary panel (line 580-679) has a `max-h-[280px]` on the inner div but the outer wrapper has no scroll constraint, so it still pushes content.
-
-3. **Stakeholders section grows unbounded**: The `StakeholdersSection` component has no max-height. When the Notes panel is open with many notes, it consumes all vertical space, squishing the Updates and Action Items sections to near-zero height.
-
-### Changes (single file: `src/components/DealExpandedPanel.tsx`)
-
-#### Fix 1: Bullet cursor positioning (line 628-634)
-
-Replace `autoFocus` on the Textarea with a `ref` callback that focuses the element AND places the cursor at the end of the text (after `"• "`):
-
-```tsx
-<Textarea
-  value={noteText}
-  onChange={(e) => setNoteText(e.target.value)}
-  onKeyDown={handleNoteKeyDown}
-  className="min-h-[100px] text-xs resize-none"
-  ref={(el) => {
-    if (el) {
-      el.focus();
-      const len = el.value.length;
-      el.selectionStart = len;
-      el.selectionEnd = len;
-    }
-  }}
-/>
+**Issue 1 — Email uses title, not ID:** In `daily-action-reminders/index.ts` line 138, the link is built as:
 ```
-
-#### Fix 2: Constrain Stakeholders section height
-
-Wrap the StakeholdersSection output in a container with `max-h` and `overflow-y-auto` so it scrolls when content is large. Change the outer div (line 462) from:
-
-```tsx
-<div className="px-3 pt-1.5 pb-1">
+${appUrl}/action-items?highlight=${encodeURIComponent(item.title)}
 ```
+This uses the item's **title** as the identifier, which is fragile (titles can have special characters, duplicates, or change over time).
 
-to:
-
-```tsx
-<div className="px-3 pt-1.5 pb-1 max-h-[45%] overflow-y-auto shrink-0">
+**Issue 2 — Highlight logic only searches the filtered in-memory list:** In `ActionItems.tsx` line 68, the code does:
 ```
-
-However, since this is not inside a flex parent that uses percentage heights well, a better approach is to change the parent layout. The parent (line 1182) is:
-
-```tsx
-<div className="flex-1 min-h-0 flex flex-col overflow-hidden gap-1">
+actionItems.find(a => a.id === highlightId || a.title === highlightId)
 ```
+This only searches items already loaded by the current query (which excludes Completed/archived items by default). If the item doesn't match exactly or isn't in the current filter view, it shows "Item not found."
 
-The fix: Make the StakeholdersSection a flex item that can shrink, and give it a max-height so it doesn't dominate. Change line 1184 from:
+**Issue 3 — Race condition risk:** The `useEffect` fires once and immediately sets `highlightProcessed = true`, so if the data hasn't settled yet or filters change, the match opportunity is lost.
 
-```tsx
-<StakeholdersSection deal={deal} queryClient={queryClient} />
+### Fix Plan
+
+#### 1. `supabase/functions/daily-action-reminders/index.ts`
+Change the email link from title-based to ID-based:
+```typescript
+// Before:
+const itemUrl = `${appUrl}/action-items?highlight=${encodeURIComponent(item.title)}`;
+// After:
+const itemUrl = `${appUrl}/action-items?highlight=${item.id}`;
 ```
+This is a UUID, guaranteed unique and stable.
 
-to wrap it in a constrained container:
+#### 2. `src/pages/ActionItems.tsx`
+Replace the current highlight `useEffect` with a more robust approach:
+- First try to find the item in the already-loaded `actionItems` list (by id OR title for backward compatibility with old emails)
+- If not found in the list, do a **direct Supabase query** using `.maybeSingle()` to fetch the item by `id` first, then by `title` as fallback
+- If found via direct query, open the modal with that item (works even if the item is completed/archived/filtered out)
+- Only show "Item not found" toast if the direct DB query also returns nothing
+- Clean up the `highlightProcessed` state management to avoid race conditions
 
-```tsx
-<div className="shrink-0 max-h-[40%] overflow-y-auto">
-  <StakeholdersSection deal={deal} queryClient={queryClient} />
-</div>
-```
+#### 3. Backward compatibility
+Old email links still use title-based highlights (e.g., `?highlight=Test%20Email`). The new logic handles both:
+- If `highlightId` looks like a UUID → query by `id`
+- Otherwise → query by `title` using `ilike` for case-insensitive matching
 
-This ensures:
-- Stakeholders section gets at most 40% of the panel height
-- When content exceeds that, a scrollbar appears
-- Updates and Action Items always get their fair share of space
+### Files Changed
 
-#### Fix 3: Ensure notes panel scrolls properly
-
-The notes summary panel (line 596) already has `max-h-[280px] overflow-y-auto`, but when inside the constrained container from Fix 2, this works correctly. No additional change needed here -- the outer scroll from Fix 2 handles it.
-
-### Summary
-
-| Change | Line(s) | Description |
-|--------|---------|-------------|
-| Replace `autoFocus` with ref callback | 628-634 | Cursor placed after bullet on open |
-| Wrap StakeholdersSection in scrollable container | 1184 | Max 40% height with scrollbar |
-
-### Technical Notes
-
-- The ref callback fires on every render, but since `el.focus()` is idempotent when already focused, this is harmless
-- The `max-h-[40%]` works because the parent has `flex-1 min-h-0` which resolves to an actual pixel height
-- Updates and Action Items sections keep their `flex-1 min-h-0` with `h-[220px]`, ensuring they share remaining space equally
+| File | Change |
+|---|---|
+| `supabase/functions/daily-action-reminders/index.ts` | Use `item.id` in email links instead of `item.title` |
+| `src/pages/ActionItems.tsx` | Add direct Supabase fallback lookup with `.maybeSingle()` when item not in filtered list |
 
