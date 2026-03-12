@@ -8,6 +8,7 @@ import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { Plus, Search, Trash2, CheckCircle, X, List, LayoutGrid, Calendar, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from 'lucide-react';
 import { useActionItems, ActionItem, ActionItemStatus, ActionItemPriority, CreateActionItemInput } from '@/hooks/useActionItems';
 import { useToast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
 import { ActionItemsTable } from '@/components/ActionItemsTable';
 import { ActionItemsKanban } from '@/components/ActionItemsKanban';
 import { ActionItemsCalendar } from '@/components/ActionItemsCalendar';
