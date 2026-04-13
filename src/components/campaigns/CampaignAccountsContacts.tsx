@@ -112,6 +112,8 @@ export function CampaignAccountsContacts({ campaignId, isCampaignEnded, campaign
   const [statusFilter, setStatusFilter] = useState("all");
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [removeConfirm, setRemoveConfirm] = useState<{ type: "account" | "contact"; id: string; name: string } | null>(null);
+  const [selectedContactIdsForAccounts, setSelectedContactIdsForAccounts] = useState<string[]>([]);
+  const [expandedModalAccounts, setExpandedModalAccounts] = useState<Set<string>>(new Set());
 
   // Slide-over states
   const [emailSlideOpen, setEmailSlideOpen] = useState(false);
@@ -210,7 +212,7 @@ export function CampaignAccountsContacts({ campaignId, isCampaignEnded, campaign
   const { data: allContacts = [] } = useQuery({
     queryKey: ["all-contacts-paginated"],
     queryFn: fetchAllContacts,
-    enabled: addContactModalOpen,
+    enabled: addContactModalOpen || addAccountModalOpen,
   });
 
   // Users for deal owner
@@ -254,9 +256,40 @@ export function CampaignAccountsContacts({ campaignId, isCampaignEnded, campaign
     return true;
   });
 
-  const availableAccounts = allAccounts.filter(
+  const availableAccounts = useMemo(() => allAccounts.filter(
     (a) => !existingAccountIds.includes(a.id) && a.account_name.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  ), [allAccounts, existingAccountIds, searchTerm]);
+
+  // Contact counts per account for the Add Accounts modal
+  const contactsByAccountName = useMemo(() => {
+    const map: Record<string, typeof allContacts> = {};
+    for (const c of allContacts) {
+      if (c.company_name) {
+        const key = c.company_name.toLowerCase();
+        if (!map[key]) map[key] = [];
+        map[key].push(c);
+      }
+    }
+    return map;
+  }, [allContacts]);
+
+  const getModalContactsForAccount = (accountName: string) => {
+    return contactsByAccountName[accountName.toLowerCase()] || [];
+  };
+
+  const toggleModalAccountExpand = (accountId: string) => {
+    setExpandedModalAccounts((prev) => {
+      const next = new Set(prev);
+      if (next.has(accountId)) next.delete(accountId); else next.add(accountId);
+      return next;
+    });
+  };
+
+  const toggleContactForAccount = (contactId: string) => {
+    setSelectedContactIdsForAccounts((prev) =>
+      prev.includes(contactId) ? prev.filter((x) => x !== contactId) : [...prev, contactId]
+    );
+  };
 
   const availableContacts = useMemo(() => {
     return allContacts.filter((c) => {
@@ -275,16 +308,42 @@ export function CampaignAccountsContacts({ campaignId, isCampaignEnded, campaign
 
   const handleAddAccounts = async () => {
     if (selectedIds.length === 0) return;
-    const inserts = selectedIds.map((account_id) => ({
+    const accountInserts = selectedIds.map((account_id) => ({
       campaign_id: campaignId, account_id, created_by: user!.id, status: "Not Contacted",
     }));
-    const { error } = await supabase.from("campaign_accounts").insert(inserts);
+    const { error } = await supabase.from("campaign_accounts").insert(accountInserts);
     if (error) { toast({ title: "Error", description: error.message, variant: "destructive" }); return; }
+
+    // Also insert selected contacts
+    if (selectedContactIdsForAccounts.length > 0) {
+      const contactInserts = selectedContactIdsForAccounts
+        .filter((cid) => !existingContactIds.includes(cid))
+        .map((contact_id) => {
+          const contact = allContacts.find((c) => c.id === contact_id);
+          let accountId: string | null = null;
+          if (contact?.company_name) {
+            // Match against newly added accounts or existing
+            const matchedNew = allAccounts.find((a) => selectedIds.includes(a.id) && a.account_name.toLowerCase() === contact.company_name!.toLowerCase());
+            const matchedExisting = campaignAccounts.find((ca: any) => ca.accounts?.account_name?.toLowerCase() === contact.company_name!.toLowerCase());
+            accountId = matchedNew?.id || matchedExisting?.account_id || null;
+          }
+          return { campaign_id: campaignId, contact_id, account_id: accountId, created_by: user!.id, stage: "Not Contacted" as const };
+        });
+      if (contactInserts.length > 0) {
+        const { error: cErr } = await supabase.from("campaign_contacts").insert(contactInserts);
+        if (cErr) { toast({ title: "Error adding contacts", description: cErr.message, variant: "destructive" }); }
+      }
+    }
+
     queryClient.invalidateQueries({ queryKey: ["campaign-accounts", campaignId] });
+    queryClient.invalidateQueries({ queryKey: ["campaign-contacts", campaignId] });
     setAddAccountModalOpen(false);
     setSelectedIds([]);
+    setSelectedContactIdsForAccounts([]);
+    setExpandedModalAccounts(new Set());
     setSearchTerm("");
-    toast({ title: `${selectedIds.length} account(s) added` });
+    const contactCount = selectedContactIdsForAccounts.filter((cid) => !existingContactIds.includes(cid)).length;
+    toast({ title: `${selectedIds.length} account(s)${contactCount > 0 ? ` and ${contactCount} contact(s)` : ""} added` });
   };
 
   const handleAddContacts = async () => {
