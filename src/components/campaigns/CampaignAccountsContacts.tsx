@@ -958,10 +958,13 @@ export function CampaignAccountsContacts({ campaignId, isCampaignEnded, campaign
       </AlertDialog>
 
       {/* ─── Add Accounts Modal ─── */}
-      <Dialog open={addAccountModalOpen} onOpenChange={setAddAccountModalOpen}>
-        <DialogContent className="sm:max-w-[600px] max-h-[80vh] flex flex-col overflow-hidden">
+      <Dialog open={addAccountModalOpen} onOpenChange={(open) => {
+        setAddAccountModalOpen(open);
+        if (!open) { setSelectedContactIdsForAccounts([]); setExpandedModalAccounts(new Set()); }
+      }}>
+        <DialogContent className="sm:max-w-[700px] max-h-[80vh] flex flex-col overflow-hidden">
           <DialogHeader><DialogTitle>Add Accounts to Campaign</DialogTitle></DialogHeader>
-          <div className="relative mb-4 flex-shrink-0">
+          <div className="relative mb-2 flex-shrink-0">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input placeholder="Search accounts..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-9" />
           </div>
@@ -971,22 +974,88 @@ export function CampaignAccountsContacts({ campaignId, isCampaignEnded, campaign
               <span className="text-sm font-medium">Select All ({availableAccounts.length})</span>
             </div>
           )}
-          <div className="flex-1 overflow-y-auto space-y-1 min-h-0">
-            {availableAccounts.map((account) => (
-              <div key={account.id} className="flex items-center gap-3 p-2 rounded hover:bg-muted/50 cursor-pointer" onClick={() => toggleSelect(account.id)}>
-                <Checkbox checked={selectedIds.includes(account.id)} />
-                <div>
-                  <p className="text-sm font-medium">{account.account_name}</p>
-                  <p className="text-xs text-muted-foreground">{[account.industry, account.region].filter(Boolean).join(" • ")}</p>
+          <div className="flex-1 overflow-y-auto min-h-0">
+            {availableAccounts.map((account) => {
+              const accountContacts = getModalContactsForAccount(account.account_name);
+              const contactCount = accountContacts.length;
+              const isExpanded = expandedModalAccounts.has(account.id);
+              const nonExistingContacts = accountContacts.filter((c) => !existingContactIds.includes(c.id));
+              return (
+                <div key={account.id} className="border-b border-border last:border-b-0">
+                  <div className="flex items-center gap-2 p-2 rounded hover:bg-muted/50">
+                    <button
+                      type="button"
+                      className="p-0.5 hover:bg-muted rounded"
+                      onClick={(e) => { e.stopPropagation(); toggleModalAccountExpand(account.id); }}
+                    >
+                      {isExpanded ? <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" /> : <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />}
+                    </button>
+                    <div className="cursor-pointer flex items-center gap-2 flex-1" onClick={() => toggleSelect(account.id)}>
+                      <Checkbox checked={selectedIds.includes(account.id)} />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <p className="text-sm font-medium">{account.account_name}</p>
+                          <Badge variant="secondary" className="text-xs">
+                            <Users className="h-3 w-3 mr-1" />{contactCount} contact{contactCount !== 1 ? "s" : ""}
+                          </Badge>
+                        </div>
+                        <p className="text-xs text-muted-foreground">{[account.industry, account.region].filter(Boolean).join(" • ")}</p>
+                      </div>
+                    </div>
+                  </div>
+                  {isExpanded && (
+                    <div className="pl-10 pr-2 pb-2 space-y-0.5">
+                      {nonExistingContacts.length === 0 ? (
+                        <p className="text-xs text-muted-foreground italic py-1">
+                          {contactCount === 0 ? "No contacts found" : "All contacts already in campaign"}
+                        </p>
+                      ) : (
+                        nonExistingContacts.map((contact) => (
+                          <div
+                            key={contact.id}
+                            className="flex items-center gap-2 p-1.5 rounded hover:bg-muted/30 cursor-pointer"
+                            onClick={() => toggleContactForAccount(contact.id)}
+                          >
+                            <Checkbox checked={selectedContactIdsForAccounts.includes(contact.id)} />
+                            <div className="flex-1 min-w-0">
+                              <p className="text-xs font-medium">{contact.contact_name}</p>
+                              <p className="text-xs text-muted-foreground truncate">
+                                {[contact.position, contact.email].filter(Boolean).join(" · ")}
+                              </p>
+                            </div>
+                            <div className="flex items-center gap-1 flex-shrink-0">
+                              {contact.email && (
+                                <TooltipProvider delayDuration={200}><Tooltip><TooltipTrigger><Mail className="h-3 w-3 text-muted-foreground" /></TooltipTrigger><TooltipContent>Has email</TooltipContent></Tooltip></TooltipProvider>
+                              )}
+                              {contact.phone_no && (
+                                <TooltipProvider delayDuration={200}><Tooltip><TooltipTrigger><Phone className="h-3 w-3 text-muted-foreground" /></TooltipTrigger><TooltipContent>Has phone</TooltipContent></Tooltip></TooltipProvider>
+                              )}
+                              {contact.linkedin && (
+                                <TooltipProvider delayDuration={200}><Tooltip><TooltipTrigger><Linkedin className="h-3 w-3 text-muted-foreground" /></TooltipTrigger><TooltipContent>Has LinkedIn</TooltipContent></Tooltip></TooltipProvider>
+                              )}
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  )}
                 </div>
-              </div>
-            ))}
+              );
+            })}
             {availableAccounts.length === 0 && <p className="text-sm text-muted-foreground text-center py-4">No available accounts</p>}
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setAddAccountModalOpen(false)}>Cancel</Button>
-            <Button onClick={handleAddAccounts} disabled={selectedIds.length === 0}>Add {selectedIds.length} Account(s)</Button>
-          </DialogFooter>
+          <div className="flex items-center justify-between pt-2 border-t border-border flex-shrink-0">
+            <span className="text-xs text-muted-foreground">
+              {selectedIds.length} account{selectedIds.length !== 1 ? "s" : ""}
+              {selectedContactIdsForAccounts.length > 0 && `, ${selectedContactIdsForAccounts.length} contact${selectedContactIdsForAccounts.length !== 1 ? "s" : ""}`} selected
+            </span>
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={() => setAddAccountModalOpen(false)}>Cancel</Button>
+              <Button onClick={handleAddAccounts} disabled={selectedIds.length === 0}>
+                Add {selectedIds.length} Account{selectedIds.length !== 1 ? "s" : ""}
+              </Button>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
 
