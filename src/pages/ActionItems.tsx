@@ -16,6 +16,7 @@ import { ActionItemModal } from '@/components/ActionItemModal';
 import { useAllUsers } from '@/hooks/useUserDisplayNames';
 import { useActionItemColumnPreferences } from '@/hooks/useActionItemColumnPreferences';
 import { Badge } from '@/components/ui/badge';
+
 type ViewMode = 'list' | 'kanban' | 'calendar';
 export default function ActionItems() {
   const {
@@ -40,6 +41,7 @@ export default function ActionItems() {
     columnWidths,
     updateColumnWidth
   } = useActionItemColumnPreferences();
+  
 
   // URL params for highlight from notifications
   const [searchParams, setSearchParams] = useSearchParams();
@@ -126,7 +128,7 @@ export default function ActionItems() {
   }, [highlightId]);
   const [itemToDelete, setItemToDelete] = useState<string | null>(null);
   const [bulkDeleteDialogOpen, setBulkDeleteDialogOpen] = useState(false);
-  const hasActiveFilters = filters.module_type !== 'all' || filters.priority !== 'all' || filters.status !== 'all' || filters.assigned_to !== 'all' || filters.search !== '';
+  const hasActiveFilters = filters.module_type !== 'all' || filters.priority !== 'all' || filters.status !== 'all' || filters.assigned_to !== 'all' || filters.search !== '' || (filters as any).campaign_filter !== undefined;
 
   // Reset pagination when filters change
   useEffect(() => {
@@ -205,12 +207,8 @@ export default function ActionItems() {
   const handleStatusChange = async (id: string, status: ActionItemStatus) => {
     try {
       await updateActionItem({ id, status });
-      // Inform user when item moves to Completed view
       if (status === 'Completed' && !filters.showArchived) {
-        toast({
-          title: "Item completed",
-          description: "Moved to the Completed view.",
-        });
+        toast({ title: "Item completed", description: "Moved to the Completed view." });
       }
     } catch (error) {
       console.error('Failed to update status:', error);
@@ -238,10 +236,17 @@ export default function ActionItems() {
     }
   };
   const handleBulkComplete = async () => {
-    await bulkUpdateStatus({
-      ids: selectedIds,
-      status: 'Completed'
-    });
+    if (selectedIds.length === 1) {
+      await updateActionItem({
+        id: selectedIds[0],
+        status: 'Completed'
+      });
+    } else {
+      await bulkUpdateStatus({
+        ids: selectedIds,
+        status: 'Completed'
+      });
+    }
     setSelectedIds([]);
   };
   const handleBulkDelete = async () => {
@@ -288,6 +293,20 @@ export default function ActionItems() {
             <Input placeholder="Search action items..." value={filters.search} onChange={e => updateFilter('search', e.target.value)} className="pl-9" />
           </div>
 
+
+          {/* Module Type Filter */}
+          <Select value={filters.module_type} onValueChange={value => updateFilter('module_type', value)}>
+            <SelectTrigger className="w-auto min-w-[100px] [&>svg]:hidden">
+              <SelectValue placeholder="Module" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Modules</SelectItem>
+              <SelectItem value="accounts">Accounts</SelectItem>
+              <SelectItem value="contacts">Contacts</SelectItem>
+              <SelectItem value="deals">Deals</SelectItem>
+              <SelectItem value="campaigns">Campaigns</SelectItem>
+            </SelectContent>
+          </Select>
 
           {/* Priority Filter */}
           <Select value={filters.priority} onValueChange={value => updateFilter('priority', value)}>
