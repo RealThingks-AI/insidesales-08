@@ -900,19 +900,19 @@ export function CampaignAccountsContacts({ campaignId, isCampaignEnded, campaign
 
       {/* ─── Add Accounts Modal ─── */}
       <Dialog open={addAccountModalOpen} onOpenChange={setAddAccountModalOpen}>
-        <DialogContent className="sm:max-w-[600px] max-h-[80vh] overflow-y-auto">
+        <DialogContent className="sm:max-w-[600px] max-h-[80vh] flex flex-col overflow-hidden">
           <DialogHeader><DialogTitle>Add Accounts to Campaign</DialogTitle></DialogHeader>
-          <div className="relative mb-4">
+          <div className="relative mb-4 flex-shrink-0">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input placeholder="Search accounts..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-9" />
           </div>
           {availableAccounts.length > 0 && (
-            <div className="flex items-center gap-3 p-2 border-b border-border mb-1 cursor-pointer" onClick={() => handleSelectAll(availableAccounts)}>
+            <div className="flex items-center gap-3 p-2 border-b border-border mb-1 cursor-pointer flex-shrink-0" onClick={() => handleSelectAll(availableAccounts)}>
               <Checkbox checked={selectedIds.length === availableAccounts.length && availableAccounts.length > 0} />
               <span className="text-sm font-medium">Select All ({availableAccounts.length})</span>
             </div>
           )}
-          <div className="max-h-[400px] overflow-y-auto space-y-1">
+          <div className="flex-1 overflow-y-auto space-y-1 min-h-0">
             {availableAccounts.map((account) => (
               <div key={account.id} className="flex items-center gap-3 p-2 rounded hover:bg-muted/50 cursor-pointer" onClick={() => toggleSelect(account.id)}>
                 <Checkbox checked={selectedIds.includes(account.id)} />
@@ -933,7 +933,7 @@ export function CampaignAccountsContacts({ campaignId, isCampaignEnded, campaign
 
       {/* ─── Add Contacts Modal ─── */}
       <Dialog open={addContactModalOpen} onOpenChange={(open) => { setAddContactModalOpen(open); if (!open) setAddContactForAccount(null); }}>
-        <DialogContent className="sm:max-w-[600px] max-h-[80vh] overflow-y-auto">
+        <DialogContent className="sm:max-w-[600px] max-h-[80vh] flex flex-col overflow-hidden">
           <DialogHeader>
             <DialogTitle>
               {addContactForAccount ? `Add Contacts from ${addContactForAccount.name}` : "Add Contacts to Campaign"}
@@ -942,17 +942,17 @@ export function CampaignAccountsContacts({ campaignId, isCampaignEnded, campaign
               <p className="text-xs text-muted-foreground mt-1">Showing contacts from campaign accounts</p>
             )}
           </DialogHeader>
-          <div className="relative mb-4">
+          <div className="relative mb-4 flex-shrink-0">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input placeholder="Search contacts..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-9" />
           </div>
           {availableContacts.length > 0 && (
-            <div className="flex items-center gap-3 p-2 border-b border-border mb-1 cursor-pointer" onClick={() => handleSelectAll(availableContacts)}>
+            <div className="flex items-center gap-3 p-2 border-b border-border mb-1 cursor-pointer flex-shrink-0" onClick={() => handleSelectAll(availableContacts)}>
               <Checkbox checked={selectedIds.length === availableContacts.length && availableContacts.length > 0} />
               <span className="text-sm font-medium">Select All ({availableContacts.length})</span>
             </div>
           )}
-          <div className="max-h-[400px] overflow-y-auto space-y-1">
+          <div className="flex-1 overflow-y-auto space-y-1 min-h-0">
             {availableContacts.map((contact) => (
               <div key={contact.id} className="flex items-center gap-3 p-2 rounded hover:bg-muted/50 cursor-pointer" onClick={() => toggleSelect(contact.id)}>
                 <Checkbox checked={selectedIds.includes(contact.id)} />
