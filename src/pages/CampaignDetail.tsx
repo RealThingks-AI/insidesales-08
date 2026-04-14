@@ -265,6 +265,14 @@ export default function CampaignDetail() {
                 isCampaignEnded={isCampaignEnded}
                 daysRemaining={daysRemaining}
                 timingNotes={detail.mart?.timing_notes}
+                contentCounts={{
+                  emailTemplateCount: detail.emailTemplates.filter(t => t.email_type !== "LinkedIn-Connection" && t.email_type !== "LinkedIn-Followup").length,
+                  phoneScriptCount: detail.phoneScripts.length,
+                  linkedinTemplateCount: detail.emailTemplates.filter(t => t.email_type === "LinkedIn-Connection" || t.email_type === "LinkedIn-Followup").length,
+                  materialCount: detail.materials.length,
+                  regionCount: (() => { try { const arr = JSON.parse(campaign.region || ""); return Array.isArray(arr) ? arr.length : 0; } catch { return campaign.region ? 1 : 0; } })(),
+                  hasAudienceData: (() => { try { const p = JSON.parse(campaign.target_audience || ""); return !!(p.job_titles?.length || p.departments?.length || p.seniorities?.length || p.industries?.length || p.company_sizes?.length); } catch { return false; } })(),
+                }}
               />
             </TabsContent>
 
